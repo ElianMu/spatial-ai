@@ -79,7 +79,7 @@ export class Simulation{
   // Cells the robot has physically driven through recently are passable whatever the map says
   // (it may have entered a tight aisle before seeing the chairs that now flank it).
   const driven=new Set();if(robot)for(let i=Math.max(0,a.trail.length-400);i<a.trail.length;i++){const p=a.trail[i];if(p.f===a.f)driven.add(key(p.x,p.z,p.f));}
-  const sk=key(a.x,a.z,a.f),edge=robot?(c,n)=>{if(driven.has(c)&&driven.has(n))return false;const p=c===sk?{x:a.x,z:a.z,f:a.f}:point(c),q=point(n);return p.f===q.f&&a.map.edgeBlocked(p,q,p.f,c===sk?.16:.22,c===sk);}:(c,n)=>c===sk?!this.world.segmentClear({x:a.x,z:a.z,f:a.f},point(n),.16):a.memory.has(c)&&a.memory.has(n)&&!this.world.edgeClear(c,n);
+  const sk=key(a.x,a.z,a.f),edge=robot?(c,n)=>{if(driven.has(c)&&driven.has(n))return false;const p=c===sk?{x:a.x,z:a.z,f:a.f}:point(c),q=point(n);return p.f===q.f&&a.map.edgeBlocked(p,q,p.f,c===sk?.16:.22,c===sk);}:(c,n)=>{const q=point(n);if(q.f!==point(c).f)return false;return c===sk?!this.world.segmentClear({x:a.x,z:a.z,f:a.f},q,.16):a.memory.has(c)&&a.memory.has(n)&&!this.world.edgeClear(c,n);};
   const zc=k=>{const z=a.memory.get(k)?.zone;return z?1/ZONE_KINDS[z].speed:1;};const path=route(a,target,k=>a.memory.get(k)?.blocked===true&&!driven.has(k)||this.time-(bumps.get(k)??-99)<20||nearby.some(b=>distance(point(k),b)<1.3),knownStairs,edge,zc);a.path=path??[];if(path?.length===0&&distance(a,target)>.01)a.path=[{x:target.x,z:target.z,f:target.f}];a.nextThink=this.time+2;
   if(path===null&&robot){a.failCount=(a.failCount??0)+1;
    // Recovery: after repeated planning failures in the same spot, back out along the robot's own
@@ -110,7 +110,12 @@ export class Simulation{
   {const nf=newFloor();if(nf){this.setGoal(a,nf.best,`Exploring L${nf.best.f+1} via ${nf.best.via}`);return;}}
   const lands=[...a.landmarks.values()].filter(l=>a.type==='human'?l.id.startsWith('furniture-')||l.type==='hub'&&Math.sin(this.time*.37+a.x)>.6:l.type==='hub');if(lands.length){const l=lands[(Math.floor(this.time/17)+this.agents.indexOf(a))%lands.length];a.reuse++;this.setGoal(a,l,'Revisiting a known landmark');}else this.setGoal(a,{...this.home},'Returning to start');
  }
- chooseResidentGoal(a){const lands=[...a.landmarks.values()].filter(l=>a.type==='human'?l.id.startsWith('furniture-')||l.type==='hub'&&Math.sin(this.time*.37+a.x)>.6:l.type==='hub');if(lands.length&&Math.sin(this.time+a.x)>.1){const l=lands[(Math.floor(this.time/13)+this.agents.indexOf(a)*3)%lands.length];a.reuse++;this.setGoal(a,l,a.type==='human'?`Heading to ${l.name.replace(/ sensor hub$/,'')}`:'Looking for a resting spot');}else this.explore(a);}
+ chooseResidentGoal(a){
+  // Staff periodically go to another floor (a meeting, the café): they must know a stair or lift
+  // that reaches it, and they use their own memory of that link to plan the trip.
+  if(a.type==='human'){a.nextFloorTrip??=60+(this.agents.indexOf(a)*37)%90;const links=this.knownLinks(a);if(this.time>=a.nextFloorTrip&&links.size){const floors=[...this.reachableFloors(a,links)].filter(f=>f!==a.f);if(floors.length){const f=floors[(this.agents.indexOf(a)+Math.floor(this.time/97))%floors.length],via=[...links].map(linkById).filter(l=>f>=l.floors[0]&&f<=l.floors[1]&&a.f>=l.floors[0]&&a.f<=l.floors[1]).sort((p,q)=>Math.hypot(p.landing.x-a.x,p.landing.z-a.z)-Math.hypot(q.landing.x-a.x,q.landing.z-a.z))[0]??linkById([...links][0]);
+   a.nextFloorTrip=this.time+120+(this.agents.indexOf(a)*53)%120;const L=via;if(L&&f>=L.floors[0]&&f<=L.floors[1]){this.setGoal(a,{x:L.landing.x,z:L.landing.z,f},`Heading to L${f+1} for a meeting`);return;}}}}
+  const lands=[...a.landmarks.values()].filter(l=>a.type==='human'?l.id.startsWith('furniture-')||l.type==='hub'&&Math.sin(this.time*.37+a.x)>.6:l.type==='hub');if(lands.length&&Math.sin(this.time+a.x)>.1){const l=lands[(Math.floor(this.time/13)+this.agents.indexOf(a)*3)%lands.length];a.reuse++;this.setGoal(a,l,a.type==='human'?`Heading to ${l.name.replace(/ sensor hub$/,'')}`:'Looking for a resting spot');}else this.explore(a);}
  servicePoint(o){return this.world.servicePoint(o);}
  chooseRobotGoal(){const a=this.robot;if(a.yieldRoute)return;
   if(this.battery<23&&!this.tasks.some(t=>t.type==='dock')){this.tasks.unshift({id:++this.counter,type:'dock',target:'dock',state:'Queued',progress:0});a.goal=null;a.path=[];}
@@ -200,7 +205,7 @@ export class Simulation{
   const next=a.path[0];
   if(next.f!==a.f){const L=LINK_AT.get(key(a.x,a.z,a.f));if(!L){a.path=[];a.nextThink=0;return;}if(Math.hypot(a.x-L.landing.x,a.z-L.landing.z)>.05){a.path.unshift({x:L.landing.x,z:L.landing.z,f:a.f});return;}
    // One user per stair flight; a lift car carries one rider per trip.
-   const lo=Math.min(a.f,next.f),busy=this.agents.some(b=>b!==a&&b.stair&&b.stair.link===L.id&&(L.kind==='lift'||Math.min(b.stair.from,b.stair.to)===lo)),occupied=this.agents.some(b=>b!==a&&!b.stair&&b.f===next.f&&distance(b,next)<1.2);
+   const lo=Math.min(a.f,next.f),busy=this.agents.some(b=>b!==a&&b.stair&&b.stair.link===L.id&&(L.kind==='lift'||Math.min(b.stair.from,b.stair.to)===lo||b.stair.to===next.f)),occupied=this.agents.some(b=>b!==a&&!b.stair&&b.f===next.f&&distance(b,next)<1.2);
    if(busy||occupied){a.status=L.kind==='lift'?`Waiting for ${L.name}`:`Waiting for a clear ${L.name.toLowerCase()}`;return;}a.stair={t:0,from:a.f,to:next.f,link:L.id,len:linkLength(L,a.f,next.f)};a.goal??=next;return;}
   const dx=next.x-a.x,dz=next.z-a.z,len=Math.hypot(dx,dz);if(len<.001){a.path.shift();return;}a.heading=Math.atan2(dz,dx);
   // A forward look is still inside the finite view cone. Navigation never reads hidden walls.
@@ -245,7 +250,7 @@ export class Simulation{
   const dog={goal:'Find a resting spot',trips:dogTrips.length,meanEfficiency:+mean(dogTrips).toFixed(3)};
   const parts={throughput:Math.min(1,robot.tasksPerMin/4),exploration:Math.min(1,this.coverage/(.0006*this.time+.02)),staffFlow:staffTrips.length?robot&&mean(staffTrips)*(1-Math.min(.5,this.failedTrips/(staffTrips.length+this.failedTrips+1))):0,energy:1-Math.min(1,robot.energyPerTask/6),calm:1-Math.min(1,(staff.yieldsPerMin+this.avoids/mins)/15)};
   const score=100*(.3*parts.throughput+.15*parts.exploration+.35*parts.staffFlow+.1*parts.energy+.1*parts.calm);
-  return {time:+this.time.toFixed(0),robot,staff,dog,parts:Object.fromEntries(Object.entries(parts).map(([k,v])=>[k,+v.toFixed(3)])),score:+score.toFixed(1)};}
+  return {time:+this.time.toFixed(0),settled:this.time>=60,robot,staff,dog,parts:Object.fromEntries(Object.entries(parts).map(([k,v])=>[k,+v.toFixed(3)])),score:+score.toFixed(1)};}
  get walkableCount(){if(!this._count){this._count=0;for(let f=0;f<FLOORS;f++)for(let x=1;x<W;x++)for(let z=1;z<D;z++)if(!this.world.navBlocked(x,z,f))this._count++;}return this._count;}
  inject(type){const a=this.robot,w=this.world;
   if(type==='move'){

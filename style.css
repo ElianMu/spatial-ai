@@ -207,3 +207,9 @@ table.frames td:first-child{color:var(--muted);width:38%;white-space:nowrap}
  .plans,.mind,.cyoa,.evo,.site,.graph-body{grid-template-columns:1fr}.dimstring{grid-template-columns:repeat(3,1fr);row-gap:18px}}
 @media(max-width:560px){.dimstring{grid-template-columns:repeat(2,1fr)}.scene-badge{display:none}.mode-legend{display:none}.scorechip{display:none}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+
+/* performance block */
+.scoreline{display:flex;align-items:baseline;gap:8px;margin-bottom:8px}.scoreline span:last-child{color:var(--muted);font-size:12px}
+.pbar{display:grid;grid-template-columns:150px 1fr 28px;align-items:center;gap:8px;font-size:11.5px;margin:3px 0}.pbar em{font-style:normal;color:var(--faint)}
+.pbar i{height:7px;background:var(--rule-2);border-radius:4px;overflow:hidden}.pbar b{display:block;height:100%;background:var(--teal);border-radius:4px}.pbar span:last-child{text-align:right;color:var(--ink)}
+.goalhead{font-size:12.5px;font-weight:650;margin:12px 0 2px;color:var(--ink)}

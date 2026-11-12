@@ -22,8 +22,8 @@ A stair carries one person per flight and goes one floor at a time; a lift carri
 
 ## What the app does (course requirements)
 
-* **Primary function: environment designer (section 06).** An environment is a *genome*: which stairs and lifts are in service, shut doors, hindrance and affordance regions, the dock and recycling positions, staff count and a seed. *Choose your own adventure* runs two variants side by side; you pick one and two new variants are bred from it. *Automated evolution* mutates the best environment, scores every candidate by its agents' aggregate performance and repeats for N epochs. Simulations run headlessly in Web Workers.
-* **Secondary function: real place + time (section 07).** The building sits on the Avery Hall site in New York (rotated 28.9° like the Manhattan grid). The real sun position and hourly Open-Meteo weather (forecast, or ERA5 for historic dates) drive the 3D sun and shadows, room heat and glare hindrances. The same data is available through an MCP server (`mcp/site-data-server.mjs`).
+* **Primary function: environment designer (**Designer** workspace).** An environment is a *genome*: which stairs and lifts are in service, shut doors, hindrance and affordance regions, the dock and recycling positions, staff count and a seed. *Choose your own adventure* runs two variants side by side; you pick one and two new variants are bred from it. *Automated evolution* mutates the best environment, scores every candidate by its agents' aggregate performance and repeats for N epochs. Simulations run headlessly in Web Workers.
+* **Secondary function: real place + time (**Site & time** workspace).** The building sits on the Avery Hall site in New York (rotated 28.9° like the Manhattan grid). The real sun position and hourly Open-Meteo weather (forecast, or ERA5 for historic dates) drive the 3D sun and shadows, room heat and glare hindrances. The same data is available through an MCP server (`mcp/site-data-server.mjs`).
 * **Locations and distances.** Every agent is located in six frames (world, grid, topological, dock-relative, robot belief, geographic). Distances to its goal are given in five metrics (Euclidean, grid, geodesic, travel time, topological hops).
 * **Performance.** Each goal type has its own measure: robot tasks per minute, latency, coverage and energy; staff trip efficiency (ideal ÷ actual time); dog trip efficiency. These combine into an environment score from 0 to 100.
 
@@ -41,6 +41,9 @@ Open http://127.0.0.1:8088/ . Serve the page over HTTP rather than opening `inde
 
 ## Explore
 
+The interface has five workspaces in the left rail: **Model** (the 3D building and six view modes), **Plans** (what each agent knows, all floors), **Robot's map** (MOMO's reconstruction and scene graph), **Designer** (compare and evolve environments) and **Site & time** (real sun and weather). The right panel always shows the selected agent: its status, six location frames, five distances, performance, tasks, commands and activity.
+
+
 * **Start patrol** begins autonomous exploration and facility tasks. MOMO collects litter, cleans floor spills, reads room sensor hubs, switches off lights in empty rooms, empties its bin at the recycling station and recharges at its dock.
 * **View modes** (above the 3D view):
   * **Realistic 3D**: the observer's view of the true building.
@@ -49,7 +52,7 @@ Open http://127.0.0.1:8088/ . Serve the page over HTTP rather than opening `inde
   * **Mapping**: MOMO's 0.25 m occupancy grid with frontiers, the live LiDAR sweep and depth points.
   * **Navigation**: the goal, the A* route, blocked cells, the robot footprint, the safety radius and the pose estimate.
   * **Scene graph**: click any object to see its relations drawn in 3D.
-* **Floors**: L1–L5, or All (exploded). **Full-height walls** switches from the architectural section cut to closed rooms. **Colliders** overlays every physics box on the visual geometry. **Quality** offers High (ambient occlusion + 4K shadows), Balanced or Fast.
+* **Floors**: *Whole building* (exploded) or L1–L5, in the top bar. **Full-height walls** switches from the architectural section cut to closed rooms. **Colliders** overlays every physics box on the visual geometry. **Quality** offers High (ambient occlusion + 4K shadows), Balanced or Fast.
 * **03 · MOMO's reconstructed office** shows a second 3D view built only from robot memory.
 * **04 · Semantic scene graph** lets you browse the robot-belief tree or the ground-truth tree, filter it (for example "handle" or "pantry") and inspect any node: attributes, relations and an error against ground truth. It also shows the Level 1–4 summary.
 * **Experiments**: move a chair, close a door, open all doors, add litter. Every change reaches MOMO's map only when its sensors observe it again.

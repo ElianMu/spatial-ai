@@ -129,6 +129,8 @@ export function createScene(container,sim,onSelect,onPick=()=>{}){
   const cone=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({color:a.color,transparent:true,opacity:a.type==='robot'?.13:.05,depthWrite:false,side:THREE.DoubleSide}));g.add(cone);
   const name=label(a.name,{scale:.75});name.position.y=a.type==='human'?2.05:a.type==='robot'?1.35:.95;g.add(name);g.userData.agent=a.id;body.traverse(m=>m.userData.agent=a.id);scene.add(g);agentMeshes.set(a.id,{g,body,cone,name});}
  sim.agents.forEach(makeAgent);
+ // Locator for the selected agent: a tall pin that stays readable in the whole-building view.
+ const beacon=new THREE.Group();{const mat=new THREE.MeshBasicMaterial({color:'#2BA9AC',depthTest:false,transparent:true,opacity:.9});const pole=new THREE.Mesh(new THREE.CylinderGeometry(.035,.035,3,8),mat);pole.position.y=1.5;const head=new THREE.Mesh(new THREE.ConeGeometry(.28,.6,16),mat);head.rotation.x=Math.PI;head.position.y=3.3;const ring=new THREE.Mesh(new THREE.RingGeometry(.55,.68,40),mat);ring.rotation.x=-Math.PI/2;ring.position.y=.04;beacon.add(pole,head,ring);beacon.renderOrder=30;for(const m of [pole,head,ring])m.renderOrder=30;beacon.userData.mat=mat;scene.add(beacon);}
 
  // ---------------------------------------------------------------- overlays ---
  const overlay=new THREE.Group();scene.add(overlay);
@@ -210,6 +212,7 @@ export function createScene(container,sim,onSelect,onPick=()=>{}){
  function update(){const now=performance.now(),dt=now-lastT;lastT=now;frames++;frameTime+=dt;if(frameTime>1000){stats.fps=Math.round(frames*1000/frameTime);frames=0;frameTime=0;}
   for(const a of sim.agents){if(!agentMeshes.has(a.id))makeAgent(a);const {g,cone,name}=agentMeshes.get(a.id);const p=a.renderPos;g.position.set(p?.x??a.x,p?yOf(p.lo)+p.y:yOf(a.f),p?.z??a.z);g.rotation.y=-a.heading;
    g.visible=(floor==='both'||(p?Number(floor)===p.lo||Number(floor)===a.stair?.to:a.f===Number(floor)))&&!(mode==='robot'&&a===sim.robot);cone.visible=showCones&&(a.id===selected||a.type==='robot')&&mode!=='robot';name.visible=mode!=='robot';rings.get(a.id).material.opacity=a.id===selected?1:.35;}
+  {const a=sim.agents.find(x=>x.id===selected)??sim.robot,p=a.renderPos,y=p?yOf(p.lo)+p.y:yOf(a.f);beacon.position.set(p?.x??a.x,y,p?.z??a.z);const far=camera.position.distanceTo(beacon.position),k=mode==='robot'?0:Math.max(1,far/22);beacon.scale.setScalar(k);beacon.visible=mode!=='robot'&&(floor==='both'||Number(floor)===(p?p.lo:a.f));beacon.userData.mat.color.set(a.color);beacon.children[1].position.y=3.3+.15*Math.sin(now/260);}
   for(const o of sim.world.objects){let g=objectMeshes.get(o.id);if(!g&&o.type!=='door'&&o.type!=='window'){addObject(o);g=objectMeshes.get(o.id);if(mode!=='realistic')applyMaterials();}if(!g)continue;g.visible=o.active!==false;if(o.solid){g.position.x=o.x;g.position.z=o.z;}}
   for(const d of sim.world.doors){const m=doorMeshes.get(d.id),target=d.open?-d.swing*Math.PI/2:0;m.angle+=(target-m.angle)*.15;m.pivot.rotation.y=m.angle;}
   for(const [id,car]of liftCars){const rider=sim.agents.find(a=>a.stair?.link===id);if(rider?.renderPos){const p=rider.renderPos;car.userData.y=p.y;car.userData.f=p.lo;}const y=yOf(car.userData.f)+car.userData.y;car.position.y=y;car.visible=floor==='both'||(y>=yOf(Number(floor))-.5&&y<=yOf(Number(floor))+H-.5);}
