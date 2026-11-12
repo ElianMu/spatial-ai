@@ -8,8 +8,8 @@
 // true category and a persistent instance id (perfect data association); it does not run a
 // learned vision model. Room labels, zones, support relations, adjacency and access are inferred
 // from what has been observed, never read from the floor plan.
-import {TYPES,toWorld,localBoxToWorld,worldDir} from './catalog.mjs?v=20261112u';
-import {key,point,W,D,EYE,FLOORS,floorLabel} from './world.mjs?v=20261112u';
+import {TYPES,toWorld,localBoxToWorld,worldDir} from './catalog.mjs?v=20261112v';
+import {key,point,W,D,EYE,FLOORS,floorLabel} from './world.mjs?v=20261112v';
 
 export const ROOM_LABELS={workspace:'Open workspace',meeting:'Meeting room',pantry:'Pantry',print:'Print room',reception:'Reception',lounge:'Lounge',office:'Private office',server:'Server room',restroom:'Restroom',wellness:'Wellness room',corridor:'Corridor'};
 // Evidence that an observed object type contributes to each room type (rule-based recognition).

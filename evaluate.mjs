@@ -1,7 +1,7 @@
 // Headless evaluation of one environment genome: run the full agent simulation (no rendering,
 // no scene-graph rebuilds) for a fixed horizon and return the performance report. Used by the
 // environment designer (manual A/B rounds and automated evolution), in Web Workers or Node.
-import {Simulation} from './simulation.mjs?v=20261112u';
+import {Simulation} from './simulation.mjs?v=20261112v';
 export const EVAL_DEFAULTS={seconds:180};
 export function createEval(genome,opts={}){const s=new Simulation(genome,{lite:true,clockStart:opts.clockStart,weather:opts.weather,timeScale:opts.timeScale});s.running=true;return s;}
 export function step(s,simSeconds){for(let i=0;i<simSeconds*10;i++)s.update(.1);}

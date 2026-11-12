@@ -1,9 +1,9 @@
-import {W,D,H,FLOORS,EYE,key,point,distance,createWorld,route,linkPosition,linkLength,linkById,LINK_AT,linkTargets} from './world.mjs?v=20261112u';
-import {OccupancyMap,Localizer,robotPerceive,RES} from './mapping.mjs?v=20261112u';
-import {SemanticBelief,detectObjects,groundTruthGraph,ROOM_LABELS} from './semantics.mjs?v=20261112u';
-import {defaultGenome,prng,zoneSites,ZONE_KINDS} from './env.mjs?v=20261112u';
-import {conditionsAt,solarEffects} from './realworld.mjs?v=20261112u';
-import {geodesic} from './metrics.mjs?v=20261112u';
+import {W,D,H,FLOORS,EYE,key,point,distance,createWorld,route,linkPosition,linkLength,linkById,LINK_AT,linkTargets} from './world.mjs?v=20261112v';
+import {OccupancyMap,Localizer,robotPerceive,RES} from './mapping.mjs?v=20261112v';
+import {SemanticBelief,detectObjects,groundTruthGraph,ROOM_LABELS} from './semantics.mjs?v=20261112v';
+import {defaultGenome,prng,zoneSites,ZONE_KINDS} from './env.mjs?v=20261112v';
+import {conditionsAt,solarEffects} from './realworld.mjs?v=20261112v';
+import {geodesic} from './metrics.mjs?v=20261112v';
 const NAMES=['Alex','Priya','Sam','Jordan','Lee','Maya','Omar','Chen','Rosa','Kai','Noor','Ivan','Zoe','Tariq','Ana','Ben'];
 const STAFF_SPOTS=[[6,10],[38,20],[18,10],[40,10],[10,20],[34,10],[30,20],[8,10],[18,20],[40,20],[14,20],[44,10],[36,10],[4,20],[42,20],[16,10]];
 // Default real-world clock: a weekday morning at the site (overridable with opts.clockStart).

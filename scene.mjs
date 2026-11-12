@@ -8,13 +8,13 @@ import {EffectComposer} from 'three/addons/postprocessing/EffectComposer.js';
 import {RenderPass} from 'three/addons/postprocessing/RenderPass.js';
 import {GTAOPass} from 'three/addons/postprocessing/GTAOPass.js';
 import {OutputPass} from 'three/addons/postprocessing/OutputPass.js';
-import {W,D,H,FLOORS,CEILING,LINKS,key,linkById} from './world.mjs?v=20261112u';
-import {CORE,ENTRANCE,stairLocal} from './building.mjs?v=20261112u';
-import {ZONE_KINDS} from './env.mjs?v=20261112u';
-import {TYPES} from './catalog.mjs?v=20261112u';
-import {RES,NX,NZ} from './mapping.mjs?v=20261112u';
-import {createMaterials,FLOOR_FINISH,CATEGORY_COLOURS,ROOM_COLOURS} from './materials.mjs?v=20261112u';
-import {Kit,buildObject,metricUV} from './furniture.mjs?v=20261112u';
+import {W,D,H,FLOORS,CEILING,LINKS,key,linkById} from './world.mjs?v=20261112v';
+import {CORE,ENTRANCE,stairLocal} from './building.mjs?v=20261112v';
+import {ZONE_KINDS} from './env.mjs?v=20261112v';
+import {TYPES} from './catalog.mjs?v=20261112v';
+import {RES,NX,NZ} from './mapping.mjs?v=20261112v';
+import {createMaterials,FLOOR_FINISH,CATEGORY_COLOURS,ROOM_COLOURS} from './materials.mjs?v=20261112v';
+import {Kit,buildObject,metricUV} from './furniture.mjs?v=20261112v';
 
 const EXPLODE=8.5,CUT=1.3,CX=W/2,CZ=D/2;
 export function createScene(container,sim,onSelect,onPick=()=>{}){

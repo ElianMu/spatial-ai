@@ -3,7 +3,7 @@
 // site data the web app uses: true sun position and Open-Meteo hourly weather for the site.
 // Claude Desktop config (~/Library/Application Support/Claude/claude_desktop_config.json):
 //   {"mcpServers":{"hearth-site":{"command":"node","args":["/ABSOLUTE/PATH/spatial ai/mcp/site-data-server.mjs"]}}}
-import {SITE,solarPosition,sunVector,fetchWeather,conditionsAt,toGeo} from '../realworld.mjs?v=20261112u';
+import {SITE,solarPosition,sunVector,fetchWeather,conditionsAt,toGeo} from '../realworld.mjs?v=20261112v';
 const tools=[
  {name:'site_info',description:'The real site the Hearth Tower simulation is placed on (coordinates, grid rotation, time zone).',inputSchema:{type:'object',properties:{}}},
  {name:'sun_position',description:'True solar azimuth/elevation at the site for an ISO date-time, plus the sun vector in the building frame.',inputSchema:{type:'object',properties:{datetime:{type:'string',description:'ISO 8601, e.g. 2026-11-12T15:00:00Z'}},required:['datetime']}},

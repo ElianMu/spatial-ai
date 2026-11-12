@@ -3,11 +3,11 @@
 // belief and recent sightings. Unobserved space is not drawn.
 import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
-import {robotObservation} from './robot-knowledge.mjs?v=20261112u';
-import {RES,NX,NZ} from './mapping.mjs?v=20261112u';
-import {W,D,FLOORS} from './world.mjs?v=20261112u';
+import {robotObservation} from './robot-knowledge.mjs?v=20261112v';
+import {RES,NX,NZ} from './mapping.mjs?v=20261112v';
+import {W,D,FLOORS} from './world.mjs?v=20261112v';
 const GAP=5;
-import {CATEGORY_COLOURS,ROOM_COLOURS} from './materials.mjs?v=20261112u';
+import {CATEGORY_COLOURS,ROOM_COLOURS} from './materials.mjs?v=20261112v';
 
 export function createRobotView(container,sim){
  const scene=new THREE.Scene();scene.background=new THREE.Color('#14302a');

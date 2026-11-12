@@ -6,13 +6,13 @@
 //    λ times, evaluates every candidate by the aggregate performance of its agents, keeps the
 //    best, and repeats for N epochs.
 // Every option is drawn as a whole-building plan (all five floors at once).
-import {createWorld,FLOORS,W,D,LINKS} from './world.mjs?v=20261112u';
-import {defaultGenome,mutate,describeGenome,clone,ZONE_KINDS} from './env.mjs?v=20261112u';
+import {createWorld,FLOORS,W,D,LINKS} from './world.mjs?v=20261112v';
+import {defaultGenome,mutate,describeGenome,clone,ZONE_KINDS} from './env.mjs?v=20261112v';
 
 let uid=0;
 export class Pool{
  constructor(n){this.n=n;this.build();}
- build(){this.workers=Array.from({length:this.n},()=>new Worker(new URL('./evolve-worker.mjs?v=20261112u',import.meta.url),{type:'module'}));this.free=[...this.workers];this.queue=[];this.jobs=new Map();
+ build(){this.workers=Array.from({length:this.n},()=>new Worker(new URL('./evolve-worker.mjs?v=20261112v',import.meta.url),{type:'module'}));this.free=[...this.workers];this.queue=[];this.jobs=new Map();
   for(const w of this.workers)w.onmessage=e=>{const j=this.jobs.get(e.data.id);if(!j)return;j.onMsg?.(e.data);if(e.data.type==='done'){this.jobs.delete(e.data.id);j.res(e.data);this.free.push(w);this.next();}};}
  run(genome,opts,onMsg){return new Promise(res=>{this.queue.push({genome,opts,onMsg,res});this.next();});}
  next(){while(this.free.length&&this.queue.length){const w=this.free.pop(),j=this.queue.shift(),id=++uid;j.worker=w;this.jobs.set(id,j);w.postMessage({cmd:'run',id,genome:j.genome,...j.opts});}}
@@ -42,7 +42,7 @@ export function drawBuilding(canvas,world,snap=null,{cols=2,title=null}={}){cons
    for(const a of snap.agents)if(a.f===f){ctx.fillStyle=a.color;ctx.beginPath();ctx.arc(X(a.x),Y(a.z),a.type==='robot'?4:2.6,0,Math.PI*2);ctx.fill();if(a.type==='robot'){ctx.strokeStyle='#123';ctx.lineWidth=1;ctx.stroke();}}}}
  if(title){ctx.fillStyle='#24413a';ctx.font='600 12px DM Sans, sans-serif';ctx.fillText(title,16,12);}}
 
-export function legendHTML(){return Object.entries(ZONE_KINDS).map(([,k])=>`<span title="${k.why}"><i style="background:${k.color}"></i>${k.label} <em>${k.type}</em></span>`).join('')+'<span><i style="background:#d9534f"></i>Closed door / out-of-service link</span><span><i style="background:#2c6756"></i>Dock</span><span><i style="background:#8a6a3f"></i>Recycling</span>';}
+export function legendHTML(){return Object.entries(ZONE_KINDS).map(([,k])=>`<li title="${k.why}"><i style="background:${k.color}"></i>${k.label} <em>${k.type}</em></li>`).join('')+'<li><i style="background:#d9534f"></i>Shut door or closed stair/lift</li><li><i style="background:#2c6756"></i>Dock</li><li><i style="background:#8a6a3f"></i>Recycling</li>';}
 
 // ---------------------------------------------------------------- designer controller ---
 export function createDesigner(root,{getBase,onLoad,getClock,getWeather}){

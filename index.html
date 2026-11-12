@@ -1,37 +1,147 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Hearth — Office Spatial Understanding</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%232c6756'/%3E%3Ctext x='17' y='49' font-size='53' fill='%23fafaf4' font-family='Georgia'%3Eh%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css?v=20261112u"><script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}</script></head>
-<body><div class="app"><header><a class="brand" href="./"><span class="brandmark">h<span>·</span></span><div>HEARTH<small>SPATIAL AGENT / WORKPLACE</small></div></a><div class="headline">An office, learned from scratch.<span>A service robot that maps, recognises and understands a workplace.</span></div><div class="live"><i></i><span id="clock">00:00</span><small>SIMULATION TIME</small></div></header>
-<section class="toolbar"><div><span class="tag">THE LIVING OFFICE</span><span class="spec">48 × 30 m · 5 floors · 70 rooms · 3 stairs + 2 lifts · sited at Avery Hall, NYC · <b id="spec-clock">–</b></span></div><div class="actions"><button id="start" class="primary">▶ Start patrol</button><button id="reset">↺ Reset</button><label class="speed">Speed <select id="speed"><option value="1">1×</option><option value="2">2×</option><option value="4">4×</option></select></label><button id="capture">Screenshot ↗</button><button id="record">Record 12 s</button></div></section>
-<main><section class="stage"><div class="stage-top"><div><span class="eyebrow">01 / OBSERVE THE OFFICE</span><h1>Every desk, door and drawer — discovered.</h1></div><div class="floor-tabs" role="group" aria-label="Building floors"><button data-floor="both" class="active">Whole building</button><button data-floor="0">L1</button><button data-floor="1">L2</button><button data-floor="2">L3</button><button data-floor="3">L4</button><button data-floor="4">L5</button></div></div>
-<div class="mode-tabs" role="group" aria-label="View mode"><button data-mode="realistic" class="active">Realistic 3D</button><button data-mode="robot">Robot camera</button><button data-mode="semantic">Semantic</button><button data-mode="mapping">Mapping</button><button data-mode="navigation">Navigation</button><button data-mode="graph">Scene graph</button></div>
-<div id="viewport"><div id="loading">Laying out the office…</div><div class="scene-badge"><i></i><b id="mode-title">Realistic 3D · observer view</b><span id="mode-help">The complete building as it really is. MOMO does not see this view.</span></div><div id="pov-hud" hidden><b>MOMO · RGB-D camera</b><span id="pov-text"></span></div><div class="mode-legend" id="mode-legend"></div><div class="scene-help">Drag to orbit · Right-drag to pan · Scroll to zoom · Click an object or agent to inspect it</div><div id="perf-readout"></div></div>
-<div class="scene-controls"><label><input id="cones" type="checkbox" checked> Vision cones</label><label><input id="paths" type="checkbox" checked> Paths</label><label><input id="landmarks" type="checkbox" checked> Landmarks</label><label><input id="colliders" type="checkbox"> Colliders</label><label><input id="full-walls" type="checkbox"> Full-height walls</label><label>Quality <select id="quality"><option value="high">High (AO + 4K shadows)</option><option value="balanced">Balanced</option><option value="fast">Fast</option></select></label><button id="home-view">Reset camera</button><span><i class="dot teal"></i>Robot <i class="dot peach"></i>People <i class="dot sand"></i>Dog</span></div>
-<div class="metrics"><div><small>Known walkable space</small><strong id="coverage">0<span>%</span></strong></div><div><small>Rooms recognised</small><strong id="rooms-known">0<span> / 14</span></strong></div><div><small>Objects in belief</small><strong id="objects-known">0<span></span></strong></div><div><small>Tasks completed</small><strong id="completed">0<span> tasks</span></strong></div><div><small>Pose error (est. vs true)</small><strong id="pose-error">0<span> cm</span></strong></div><div><small>Battery remaining</small><strong id="battery">100<span>%</span></strong></div><div><small>Environment score</small><strong id="env-score">–<span> / 100</span></strong></div></div>
-<section class="robot-vision"><div class="section-head"><div><span class="eyebrow">03 / THROUGH MOMO'S SENSORS</span><h2>MOMO's reconstructed office</h2></div><select id="scan-floor" aria-label="Robot scan view floor"><option value="all" selected>Whole building</option><option value="follow">Follow MOMO's floor</option><option value="0">Level 1</option><option value="1">Level 2</option><option value="2">Level 3</option><option value="3">Level 4</option><option value="4">Level 5</option></select></div><p class="scan-description">Built only from MOMO's own LiDAR and depth returns (0.25 m occupancy grid with observed heights), its detected object boxes and the rooms it has recognised. Yellow dots are grasp points unlocked at close range. Unscanned space stays empty.</p><div id="robot-viewport" aria-label="3D reconstruction of areas scanned by MOMO"><div id="scan-empty">Start the patrol to reveal MOMO's first scan.</div><div class="scan-caption"><span id="scan-readout">0 scanned cells</span><span>Drag to orbit · Scroll to zoom</span></div></div><div class="scan-legend"><span><i class="dot teal"></i>Recent scan</span><span><i class="dot known"></i>Free floor</span><span><i class="dot obstacle"></i>Observed obstacle (height = observed)</span><span><i class="dot sand"></i>Last seen person</span><label><input id="scan-follow" type="checkbox" checked> Follow position</label></div></section>
-<section class="graph-panel"><div class="section-head"><div><span class="eyebrow">04 / SEMANTIC SCENE GRAPH</span><h2>Building → Floor → Room → Zone → Furniture → Object → Part</h2></div><div class="segmented narrow"><button id="graph-belief" class="active">Robot belief</button><button id="graph-truth">Ground truth</button></div></div>
-<div class="levels" id="levels"></div>
-<div class="graph-body"><div><input id="graph-filter" placeholder="Filter nodes (e.g. drawer, kitchen, chair)" aria-label="Filter scene graph"><div id="graph-tree" class="graph-tree"></div></div><div id="inspector" class="inspector"><p class="empty">Select a node, or click an object in the 3D view.</p></div></div></section>
-<section class="knowledge"><div class="section-head"><div><span class="eyebrow">05 / SPATIAL KNOWLEDGE</span><h2>An office, remembered</h2></div><select id="knowledge-floor" aria-label="Knowledge map floor"><option value="all" selected>All floors</option><option value="0">L1 map</option><option value="1">L2 map</option><option value="2">L3 map</option><option value="3">L4 map</option><option value="4">L5 map</option></select></div><div class="knowledge-body"><canvas id="map" width="640" height="620" aria-label="Selected agent's limited knowledge map"></canvas><div class="knowledge-info"><div class="segmented"><button id="individual" class="active">Individual memory</button><button id="common">Shared knowledge</button></div><p id="knowledge-text"></p><div class="map-legend"><span><i style="background:#dddcd3"></i>Unknown</span><span><i style="background:#e9e7dd"></i>Known floor</span><span><i style="background:#6b746d"></i>Obstacle</span><span><i style="background:#b38b59"></i>Door</span><span><i style="background:#d89d56"></i>Landmark</span><span><i style="background:#2a8b77"></i>Shared</span></div><div id="landmark-list"></div><button id="add-agents">＋ Add 6 visitors to the office</button></div></div></section>
-<section class="designer" id="designer"><div class="section-head"><div><span class="eyebrow">06 / ENVIRONMENT DESIGNER · PRIMARY FUNCTION</span><h2>Generate, compare and evolve environments</h2></div></div>
-<p class="scan-description">An environment is a <b>genome</b>: which stairs and lifts are in service, which doors are shut, where hindrance and affordance regions lie, where the dock and recycling station sit, and how many staff work here. Each option is simulated headlessly (the full agent model in Web Workers) and scored by the <b>aggregate performance of its agents</b>: robot task throughput and exploration, staff trip efficiency, energy and calm flow. Plans show the whole building, all five floors.</p>
-<div class="map-legend zone-legend" id="designer-legend"></div>
-<h3 class="sub">A · Choose your own adventure (manual)</h3>
-<div class="cyoa-controls"><button id="cyoa-start" class="primary">Generate two options</button><label>Run length <select id="cyoa-seconds"><option value="120">120 s</option><option value="180" selected>180 s</option><option value="300">300 s</option></select></label><button id="cyoa-stop">Stop</button><span id="cyoa-round" class="muted"></span></div>
-<div class="cyoa"><div class="option" id="cyoa-A"><div class="option-head"><b>Option A</b><span class="changes muted">press “Generate two options”</span></div><canvas width="560" height="580"></canvas><div class="bar"><i></i></div><p class="perf"></p><p class="genome muted"></p><div class="option-actions"><button class="pick primary">Choose A → breed two new variants</button><button class="load">Load in 3D</button></div></div><div class="option" id="cyoa-B"><div class="option-head"><b>Option B</b><span class="changes muted">press “Generate two options”</span></div><canvas width="560" height="580"></canvas><div class="bar"><i></i></div><p class="perf"></p><p class="genome muted"></p><div class="option-actions"><button class="pick primary">Choose B → breed two new variants</button><button class="load">Load in 3D</button></div></div></div>
-<ol id="cyoa-lineage" class="lineage"></ol>
-<h3 class="sub">B · Automated evolution (epochs)</h3>
-<div class="cyoa-controls"><label>Epochs <input id="evo-epochs" type="number" min="1" max="60" value="8"></label><label>Variants per epoch <input id="evo-pop" type="number" min="2" max="8" value="4"></label><label>Run length <select id="evo-seconds"><option value="120" selected>120 s</option><option value="180">180 s</option><option value="300">300 s</option></select></label><button id="evo-run" class="primary">▶ Evolve</button><button id="evo-load">Load best in 3D</button><button id="evo-export">Export run (JSON)</button></div>
-<p id="evo-status" class="muted">Generate → evaluate → keep the best → mutate it → repeat. The number of epochs is the number of iterations.</p>
-<div class="evo"><div><canvas id="evo-chart" width="560" height="300"></canvas><ol id="evo-log" class="lineage"></ol></div><div><canvas id="evo-best" width="560" height="580"></canvas><p id="evo-best-desc" class="muted"></p></div></div></section>
-<section class="realdata"><div class="section-head"><div><span class="eyebrow">07 / REAL PLACE + TIME · SECONDARY FUNCTION</span><h2>True sun and weather at the site</h2></div></div>
-<p class="scan-description">The building is sited at Avery Hall, Columbia University (40.8083° N, 73.9613° W), rotated 28.9° like the Manhattan grid. The 3D sun, shadows, room heat (read by MOMO's temperature checks) and <b>glare hindrance regions</b> follow the real solar position for the site clock and hourly weather from the Open-Meteo API (forecast for recent days, ERA5 archive for historic dates).</p>
-<div class="cyoa-controls"><label>Site date & time <input id="rw-date" type="datetime-local"></label><label>Clock speed <select id="rw-scale"><option value="1">1× real time</option><option value="20" selected>20×</option><option value="60">60×</option><option value="240">240×</option></select></label><button id="rw-now">Now</button><button id="rw-fetch" class="primary">Load weather for this date</button></div>
-<div class="real-grid"><div id="rw-readout" class="rw-readout"></div><canvas id="rw-chart" width="620" height="240"></canvas></div></section></section>
-<aside><section class="agent-card"><span class="eyebrow">02 / AGENT AT WORK</span><div class="robot-title"><div class="robot-icon">◉</div><div><h2 id="agent-name">MOMO</h2><span id="agent-kind">SERVICE ROBOT</span></div><span class="status-pill" id="run-status">Ready</span></div><label class="agent-picker">Observe <select id="agent-select"></select></label><p id="agent-status" role="status">Ready to explore this office.</p><div class="facts"><span>Position (true) <b id="position">(2, 9, 0) m</b></span><span>Field of view <b id="vision">105° / 6.5 m</b></span><span>Waste container <b id="cargo">0 / 3</b></span><span>Landmarks reused <b id="reuse">0 times</b></span><span>Pose estimate <b id="estimate">–</b></span><span>Robot yields <b id="avoids">0 times</b></span></div><h3 class="mini">Location in six frames of reference</h3><table id="frames" class="frames"></table><h3 class="mini">Distance to <span id="dist-target">goal</span> in five metrics</h3><table id="dists" class="frames"></table></section>
-<section class="perf-panel"><div class="section-head"><h2>Goals & performance</h2><span>PER GOAL TYPE</span></div><div id="perf"></div></section>
-<section class="dispatch"><div class="section-head"><h2>Leave it to MOMO</h2><span>LIVE COMMANDS</span></div><p>Assign known targets. Patrols discover the rest.</p><div class="task-buttons"><button data-task="trash">♧<span>Collect litter</span></button><button data-task="surface">▧<span>Clean spills</span></button><button data-task="tidy">⌖<span>Review layout</span></button><button data-task="temperature">♨<span>Temperature</span></button><button data-task="lights">☼<span>Lights off</span></button><button data-task="dock">⌂<span>Return to dock</span></button></div><label class="auto-label"><input type="checkbox" id="auto" checked> Discover and handle tasks automatically</label></section>
-<section class="task-panel"><div class="section-head"><h2>To-do list <span id="task-count">0</span></h2><button id="patrol">Keep exploring ↗</button></div><div id="tasks"><p class="empty">An unknown office, ready to explore.<br>Discovered tasks will appear here.</p></div></section>
-<section class="events"><div class="section-head"><h2>Perception & action</h2><span>LIVE FEED</span></div><div id="events" aria-live="off"></div></section>
-<details class="experiments" open><summary>Experiments / Change the office</summary><p>Changes enter MOMO's map only when its sensors observe them again.</p><div><button data-inject="move">Move a chair</button><button data-inject="close-door">Close a door</button><button data-inject="open-doors">Open all doors</button><button data-inject="trash">Add litter</button><button data-inject="spill">Wet-floor spill</button><button data-inject="lights">Turn all lights on</button></div></details>
-<details class="assignment"><summary>What is real vs. approximated</summary><p><b>Sensing:</b> a 360° LiDAR (0.18 m, 12 m) and a 105° RGB-D camera (0.95 m, 6.5 m) are simulated by 3D ray casting against the building's colliders, with range noise. MOMO never reads the floor plan.</p><p><b>Mapping:</b> real log-odds occupancy-grid mapping at 0.25 m, frontier-based exploration and A* planning on MOMO's own map, with a footprint sweep.</p><p><b>Pose:</b> noisy wheel odometry corrected by correlative scan-to-map matching is estimated and scored. The map itself is registered with the simulator pose ("mapping with known poses"); this is not full SLAM and has no loop closure.</p><p><b>Recognition:</b> objects are detected with an oracle-labelled detector that still needs line of sight, field of view and size-dependent range; it returns true categories and persistent ids. Room types, zones and spatial relations are inferred from those observations.</p><p><b>Manipulation:</b> grasp points, handles and articulation axes are modelled for future work; MOMO has no arm, so it cannot open doors or drawers.</p><a href="ARCHITECTURE.md" target="_blank" rel="noopener">Architecture notes ↗</a><a href="PROPOSAL.md" target="_blank" rel="noopener">Original project proposal (Chinese) ↗</a></details></aside></main>
-<footer><span>HEARTH / A SPATIAL INTELLIGENCE STUDY</span><span>Sense → Map → Recognise → Relate → Act → Observe again</span><span>BUILT WITH JAVASCRIPT + THREE.JS</span></footer></div><script type="module" src="app.mjs?v=20261112u"></script></body></html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Hearth Tower · a service robot learns a building</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='10' fill='%231F2427'/%3E%3Cpath d='M14 50V14M50 50V14M14 32h36M24 50V40h16v10' stroke='%2328A5A8' stroke-width='5' fill='none'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,300..800&display=swap">
+<link rel="stylesheet" href="style.css?v=20261112v">
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}</script></head>
+<body>
+<div class="shell">
+
+<!-- Title block: what this is, transport, floors, site clock, score -->
+<header class="topbar">
+ <a class="brand" href="./" aria-label="Hearth Tower home"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M7 26V6M25 26V6M7 16h18M12 26v-5h8v5"/></svg><span><b>Hearth Tower</b><small>Avery Hall site, New York</small></span></a>
+ <div class="transport" role="group" aria-label="Simulation controls">
+  <button id="start" class="play">Start</button>
+  <button id="reset" class="ghost" title="Reset the simulation">Reset</button>
+  <label class="speed" title="Simulation speed"><span class="sr">Speed</span><select id="speed"><option value="1">1×</option><option value="2">2×</option><option value="4">4×</option><option value="8">8×</option></select></label>
+  <span class="simclock"><span id="clock">00:00</span><small>simulated</small></span>
+ </div>
+ <div class="floor-tabs" role="group" aria-label="Floors"><button data-floor="both" class="active">Whole building</button><button data-floor="0">L1</button><button data-floor="1">L2</button><button data-floor="2">L3</button><button data-floor="3">L4</button><button data-floor="4">L5</button></div>
+ <div class="siteclock" title="Site clock and sun (section Site &amp; time)"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="4"/><path d="M10 1v3M10 16v3M1 10h3M16 10h3M3.6 3.6l2.1 2.1M14.3 14.3l2.1 2.1M3.6 16.4l2.1-2.1M14.3 5.7l2.1-2.1"/></svg><span id="spec-clock">–</span></div>
+ <div class="scorechip" title="Environment score: aggregate performance of every agent"><b id="env-score">–<span></span></b><small>environment score</small></div>
+ <div class="tools"><button id="capture" class="icon" title="Save a screenshot"><svg viewBox="0 0 20 20"><rect x="2" y="5" width="16" height="12" rx="2"/><circle cx="10" cy="11" r="3.2"/><path d="M7 5l1.4-2h3.2L13 5"/></svg><span class="sr">Screenshot</span></button><button id="record" class="icon" title="Record 12 seconds of the 3D view"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><circle cx="10" cy="10" r="3" class="fill"/></svg><span class="sr">Record 12 s</span></button></div>
+</header>
+
+<!-- Workspace rail -->
+<nav class="rail" aria-label="Workspaces">
+ <button data-ws="model" class="active"><svg viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/><path d="M3 17.5l9 5 9-5" opacity=".5"/></svg>Model</button>
+ <button data-ws="plans"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16"/><path d="M3 10h8v10M11 4v6M15 10h6M15 10v5"/></svg>Plans</button>
+ <button data-ws="mind"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M1 12h4M19 12h4"/></svg>Robot's map</button>
+ <button data-ws="designer"><svg viewBox="0 0 24 24"><rect x="2.5" y="5" width="8" height="14"/><rect x="13.5" y="5" width="8" height="14"/><path d="M6.5 9v6M17.5 9v6"/></svg>Designer</button>
+ <button data-ws="site"><svg viewBox="0 0 24 24"><path d="M3 18h18"/><path d="M6 18a6 6 0 0 1 12 0"/><circle cx="16.5" cy="6.5" r="2.5"/></svg>Site &amp; time</button>
+ <a class="rail-doc" href="REQUIREMENTS.md" target="_blank" rel="noopener" title="How each course requirement is met"><svg viewBox="0 0 24 24"><path d="M6 2h9l4 4v16H6z"/><path d="M9 11l2 2 4-4M9 17h7"/></svg>Brief</a>
+</nav>
+
+<main class="workspaces">
+
+ <!-- MODEL: the building as it really is, with MOMO's view modes -->
+ <section class="ws active" id="ws-model" aria-label="3D model">
+  <div id="viewport">
+   <div id="loading">Laying out five floors…</div>
+   <div class="vp-top">
+    <div class="mode-tabs" role="group" aria-label="View mode"><button data-mode="realistic" class="active">Realistic</button><button data-mode="robot">Robot camera</button><button data-mode="semantic">Semantic</button><button data-mode="mapping">Mapping</button><button data-mode="navigation">Navigation</button><button data-mode="graph">Relations</button></div>
+    <div class="mode-legend" id="mode-legend"></div>
+   </div>
+   <div class="scene-badge"><b id="mode-title">Realistic 3D · observer view</b><span id="mode-help">The complete building as it really is. MOMO does not see this view.</span></div>
+   <div id="pov-hud" hidden><b>MOMO · RGB-D camera</b><span id="pov-text"></span></div>
+   <div class="vp-bottom">
+    <details class="layers"><summary>Layers &amp; quality</summary><div>
+     <label><input id="cones" type="checkbox" checked> Vision cones</label><label><input id="paths" type="checkbox" checked> Paths</label><label><input id="landmarks" type="checkbox" checked> Landmarks</label><label><input id="colliders" type="checkbox"> Colliders</label><label><input id="full-walls" type="checkbox"> Full-height walls</label>
+     <label class="q">Quality <select id="quality"><option value="balanced">Balanced</option><option value="high">High (ambient occlusion)</option><option value="fast">Fast</option></select></label>
+     <button id="home-view" class="ghost">Reset camera</button></div></details>
+    <span class="who"><i class="dot robot"></i>Robot <i class="dot person"></i>People <i class="dot dog"></i>Dog</span>
+    <span id="perf-readout"></span>
+   </div>
+  </div>
+  <!-- Readings drawn like a dimension string under the drawing -->
+  <div class="dimstring" aria-label="Live readings">
+   <div><strong id="coverage">0<span>%</span></strong><small>of walkable space known</small></div>
+   <div><strong id="rooms-known">0<span></span></strong><small>rooms recognised</small></div>
+   <div><strong id="objects-known">0<span></span></strong><small>objects in belief</small></div>
+   <div><strong id="completed">0<span></span></strong><small>tasks completed</small></div>
+   <div><strong id="pose-error">0<span></span></strong><small>pose error</small></div>
+   <div><strong id="battery">100<span>%</span></strong><small>battery</small></div>
+  </div>
+ </section>
+
+ <!-- PLANS: each agent's limited knowledge, whole building -->
+ <section class="ws" id="ws-plans" aria-label="Knowledge plans">
+  <div class="ws-head"><h1>What each agent knows</h1><p>Every agent starts with an empty map. Grey is unknown; cells fill in only where the agent has looked.</p></div>
+  <div class="plans">
+   <div class="sheet map-sheet"><canvas id="map" width="640" height="620" aria-label="Selected agent's knowledge map"></canvas></div>
+   <div class="sheet plans-side">
+    <label class="field">Floor <select id="knowledge-floor"><option value="all" selected>All five floors</option><option value="0">L1</option><option value="1">L2</option><option value="2">L3</option><option value="3">L4</option><option value="4">L5</option></select></label>
+    <div class="seg"><button id="individual" class="active">One agent</button><button id="common">Shared by all</button></div>
+    <p id="knowledge-text" class="note"></p>
+    <ul class="key"><li><i style="background:#d9dbd0"></i>Unknown</li><li><i style="background:#f4f3e7"></i>Seen floor</li><li><i style="background:#748071"></i>Obstacle</li><li><i style="background:#b38b59"></i>Door</li><li><i style="background:#c5924d"></i>Landmark</li><li><i style="background:#2a8b77"></i>Seen by many</li><li><i style="border:1.5px solid #6f5bd1;background:none"></i>Lift landing</li><li><i style="border:1.5px solid #2f3a35;background:none"></i>Stair landing</li></ul>
+    <h2>Recent landmarks</h2><div id="landmark-list" class="landmarks"></div>
+    <button id="add-agents" class="ghost wide">Add six visitors with empty maps</button>
+   </div>
+  </div>
+ </section>
+
+ <!-- ROBOT'S MAP: reconstruction from memory + semantic scene graph -->
+ <section class="ws" id="ws-mind" aria-label="Robot's reconstruction and scene graph">
+  <div class="ws-head"><h1>The building as MOMO understands it</h1><p>Built only from MOMO's own LiDAR and depth returns, its detections and the rooms it has recognised. Yellow dots are grasp points unlocked at close range.</p></div>
+  <div class="mind">
+   <div class="sheet mind-3d"><div class="sheet-bar"><label class="field">Show <select id="scan-floor" aria-label="Robot reconstruction floor"><option value="all" selected>Whole building</option><option value="follow">MOMO's current floor</option><option value="0">L1</option><option value="1">L2</option><option value="2">L3</option><option value="3">L4</option><option value="4">L5</option></select></label><label class="check"><input id="scan-follow" type="checkbox" checked> Follow MOMO</label></div>
+    <div id="robot-viewport"><div id="scan-empty">Start the simulation to see MOMO's first scan.</div><div class="scan-caption"><span id="scan-readout">0 scanned cells</span><span>Drag to orbit, scroll to zoom</span></div></div>
+    <ul class="key inline"><li><i style="background:#56c5a1"></i>Just scanned</li><li><i style="background:#7f9d90"></i>Free floor</li><li><i style="background:#5f7c71"></i>Obstacle, at its observed height</li><li><i style="background:#e8bc94"></i>Last seen person</li></ul></div>
+   <div class="sheet mind-graph"><div class="sheet-bar"><h2>Scene graph</h2><div class="seg small"><button id="graph-belief" class="active">MOMO's belief</button><button id="graph-truth">Ground truth</button></div></div>
+    <p class="note">Building → floor → room → zone → furniture → object → part</p>
+    <div class="levels" id="levels"></div>
+    <input id="graph-filter" placeholder="Filter, e.g. handle, pantry, chair" aria-label="Filter scene graph">
+    <div class="graph-body"><div id="graph-tree" class="graph-tree"></div><div id="inspector" class="inspector"><p class="empty">Pick a node, or click an object in the 3D model.</p></div></div></div>
+  </div>
+ </section>
+
+ <!-- DESIGNER: primary function -->
+ <section class="ws" id="ws-designer" aria-label="Environment designer">
+  <div class="ws-head"><h1>Design the environment</h1><p>An environment is a set of design choices: which stairs and lifts run, which doors are shut, where hindrance and affordance regions lie, where the dock and recycling station sit, and how many people work here. Every option is simulated with the full agent model and scored by how well its agents perform.</p></div>
+  <div class="seg big" role="tablist"><button data-dtab="cyoa" class="active">Compare two, pick one</button><button data-dtab="evo">Evolve over epochs</button></div>
+  <div id="designer">
+   <ul class="key zone-legend" id="designer-legend"></ul>
+   <div class="dpane active" data-dpane="cyoa">
+    <div class="toolbar"><button id="cyoa-start" class="primary">Generate two options</button><label class="field">Run each for <select id="cyoa-seconds"><option value="120">120 s</option><option value="180" selected>180 s</option><option value="300">300 s</option></select></label><button id="cyoa-stop" class="ghost">Stop</button><span id="cyoa-round" class="note"></span></div>
+    <div class="cyoa">
+     <div class="option" id="cyoa-A"><div class="option-head"><b>A</b><span class="changes">Press “Generate two options”.</span></div><canvas width="560" height="580"></canvas><div class="bar"><i></i></div><p class="perf"></p><p class="genome"></p><div class="option-actions"><button class="pick primary">Keep A and breed two more</button><button class="load ghost">Open A in the model</button></div></div>
+     <div class="option" id="cyoa-B"><div class="option-head"><b>B</b><span class="changes">Press “Generate two options”.</span></div><canvas width="560" height="580"></canvas><div class="bar"><i></i></div><p class="perf"></p><p class="genome"></p><div class="option-actions"><button class="pick primary">Keep B and breed two more</button><button class="load ghost">Open B in the model</button></div></div>
+    </div>
+    <h2>Your choices so far</h2><ol id="cyoa-lineage" class="lineage"></ol>
+   </div>
+   <div class="dpane" data-dpane="evo">
+    <div class="toolbar"><label class="field">Epochs <input id="evo-epochs" type="number" min="1" max="60" value="8"></label><label class="field">Variants per epoch <input id="evo-pop" type="number" min="2" max="8" value="4"></label><label class="field">Run each for <select id="evo-seconds"><option value="120" selected>120 s</option><option value="180">180 s</option><option value="300">300 s</option></select></label><button id="evo-run" class="primary">Evolve</button><button id="evo-load" class="ghost">Open best in the model</button><button id="evo-export" class="ghost">Export run (JSON)</button></div>
+    <p id="evo-status" class="note">Each epoch mutates the best environment, simulates every variant, and keeps whichever scores highest.</p>
+    <div class="evo"><div class="sheet"><canvas id="evo-chart" width="560" height="300"></canvas><ol id="evo-log" class="lineage"></ol></div><div class="sheet"><canvas id="evo-best" width="560" height="580"></canvas><p id="evo-best-desc" class="note"></p></div></div>
+   </div>
+  </div>
+ </section>
+
+ <!-- SITE & TIME: secondary function -->
+ <section class="ws" id="ws-site" aria-label="Site and time">
+  <div class="ws-head"><h1>Real sun and weather at Avery Hall</h1><p>The building sits on the Avery Hall plot at Columbia (40.8083° N, 73.9613° W), turned 28.9° like the Manhattan grid. The 3D sun and shadows, the heat MOMO measures in each room and the glare regions follow the true solar position and hourly weather from Open-Meteo.</p></div>
+  <div class="toolbar"><label class="field">Site date and time <input id="rw-date" type="datetime-local"></label><label class="field">Clock speed <select id="rw-scale"><option value="1">Real time</option><option value="20" selected>20×</option><option value="60">60×</option><option value="240">240×</option></select></label><button id="rw-now" class="ghost">Jump to now</button><button id="rw-fetch" class="primary">Load weather for this date</button></div>
+  <div class="site"><div class="sheet"><div id="rw-readout" class="rw-readout"></div></div><div class="sheet"><canvas id="rw-chart" width="760" height="340"></canvas></div></div>
+ </section>
+</main>
+
+<!-- Inspector: the selected agent -->
+<aside class="inspector-panel" aria-label="Selected agent">
+ <div class="agent-head"><label class="sr" for="agent-select">Agent</label><select id="agent-select"></select><span class="status-pill" id="run-status">Paused</span></div>
+ <h2 id="agent-name" class="agent-name">MOMO</h2><span id="agent-kind" class="agent-kind">Service robot</span>
+ <p id="agent-status" class="agent-status" role="status">Ready to explore.</p>
+ <dl class="facts"><div><dt>Position</dt><dd id="position">–</dd></div><div><dt>Vision</dt><dd id="vision">–</dd></div><div><dt>Waste carried</dt><dd id="cargo">0 / 3</dd></div><div><dt>Landmarks reused</dt><dd id="reuse">0</dd></div><div><dt>Pose estimate</dt><dd id="estimate">–</dd></div><div><dt>Times MOMO yielded</dt><dd id="avoids">0</dd></div></dl>
+
+ <details class="block" open><summary>Where it is, in six frames</summary><table id="frames" class="frames"></table></details>
+ <details class="block" open><summary><span>How far to <span id="dist-target">its goal</span></span></summary><table id="dists" class="frames"></table></details>
+ <details class="block" open><summary>How well everyone is doing</summary><div id="perf"></div></details>
+ <details class="block" open><summary>To-do <span id="task-count" class="count">0</span></summary><div id="tasks"><p class="empty">Discovered tasks will appear here.</p></div><button id="patrol" class="ghost wide">Keep exploring</button></details>
+ <details class="block"><summary>Give MOMO a task</summary><div class="task-buttons"><button data-task="trash">Collect litter</button><button data-task="surface">Clean spills</button><button data-task="tidy">Review moved furniture</button><button data-task="temperature">Check temperatures</button><button data-task="lights">Lights off in empty rooms</button><button data-task="dock">Return to dock</button></div><label class="check"><input type="checkbox" id="auto" checked> Find and handle tasks automatically</label></details>
+ <details class="block"><summary>Change the building now</summary><p class="note">MOMO only notices a change once its sensors see it.</p><div class="task-buttons"><button data-inject="move">Move a chair</button><button data-inject="close-door">Close a door</button><button data-inject="open-doors">Open every door</button><button data-inject="trash">Drop litter</button><button data-inject="spill">Spill water (wet floor)</button><button data-inject="lights">Turn all lights on</button></div></details>
+ <details class="block" open><summary>Activity</summary><div id="events" aria-live="off"></div></details>
+ <details class="block"><summary>What is real and what is approximated</summary><div class="note prose"><p>Sensors are simulated by ray casting against the building's geometry with noise; MOMO never reads the floor plan. Mapping, frontier exploration and A* planning run on MOMO's own map. Pose is estimated from noisy odometry and scan matching, but the map uses the true pose (no loop closure). The object detector returns true categories once an object is in view and unoccluded; rooms, zones and relations are inferred. MOMO has no arm.</p><p><a href="SEMANTIC_MODEL.md" target="_blank" rel="noopener">Semantic model</a> · <a href="ARCHITECTURE.md" target="_blank" rel="noopener">Architecture notes</a></p></div></details>
+</aside>
+</div>
+<script type="module" src="app.mjs?v=20261112v"></script>
+</body></html>

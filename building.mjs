@@ -14,7 +14,7 @@
 // Four open cross passages link the two corridors into a racetrack, so most destinations have
 // more than one route. Vertical circulation: West stair (L1–L5), East stair (L1–L5), a feature
 // stair that only serves L1–L3, and two lifts in the central core serving every floor.
-import {ROT,toWorld} from './catalog.mjs?v=20261112u';
+import {ROT,toWorld} from './catalog.mjs?v=20261112v';
 
 export const W=48,D=30,FLOORS=5,H=3.6,CEILING=3.0,EXT_WALL=.25,INT_WALL=.12,DOOR_CLEAR=1.0;
 export const FLOOR_NAMES=['L1 · Lobby & amenities','L2 · Engineering','L3 · Design studio','L4 · Operations','L5 · Executive'];

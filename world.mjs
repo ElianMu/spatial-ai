@@ -2,9 +2,9 @@
 // spatial queries. The navigation grid stays at 1 m (cell keys "x,z,floor"); collision,
 // visibility and sensing use continuous 3D axis-aligned boxes. The floor plan, room programme
 // and furnishing rules live in building.mjs.
-import {makeObject,localBoxToWorld,ROT} from './catalog.mjs?v=20261112u';
-import {W,D,FLOORS,H,CEILING,EXT_WALL,INT_WALL,DOOR_CLEAR,LINKS,FLOOR_NAMES,linkServes,flightPath,liftPath,buildProgramme,wallBoxes,ENTRANCE} from './building.mjs?v=20261112u';
-import {defaultGenome,ZONE_KINDS} from './env.mjs?v=20261112u';
+import {makeObject,localBoxToWorld,ROT} from './catalog.mjs?v=20261112v';
+import {W,D,FLOORS,H,CEILING,EXT_WALL,INT_WALL,DOOR_CLEAR,LINKS,FLOOR_NAMES,linkServes,flightPath,liftPath,buildProgramme,wallBoxes,ENTRANCE} from './building.mjs?v=20261112v';
+import {defaultGenome,ZONE_KINDS} from './env.mjs?v=20261112v';
 export {W,D,FLOORS,H,CEILING,EXT_WALL,INT_WALL,DOOR_CLEAR,LINKS,FLOOR_NAMES,linkServes};
 
 export const NAV_BAND=[.03,1.0];            // obstacle heights that intersect the robot body

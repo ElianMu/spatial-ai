@@ -6,7 +6,7 @@
 //   zones        hindrances (penalty regions) and affordances (bonus regions) on the floor
 //   dock, bin    where MOMO's charging dock and the recycling station are installed
 //   staff        number of staff agents; seed drives every stochastic event
-import {W,D,FLOORS,LINKS,PROGRAMME,PASSAGES,DOCK,RECYCLING} from './building.mjs?v=20261112u';
+import {W,D,FLOORS,LINKS,PROGRAMME,PASSAGES,DOCK,RECYCLING} from './building.mjs?v=20261112v';
 
 // Region kinds. speed multiplies walking / driving speed; energy multiplies the robot's
 // battery drain (negative = charging); cost is what a planner pays per metre once it has seen

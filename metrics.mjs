@@ -14,8 +14,8 @@
 //   geodesic   walkable path length through doors, stairs and lifts (m), from A* on true geometry
 //   time       travel time along that path (s), with region speeds, stair climbing and lift waits
 //   topology   rooms entered + floors changed along that path (hops)
-import {H,key,point,route,LINK_AT,linkLength} from './world.mjs?v=20261112u';
-import {SITE,toGeo} from './realworld.mjs?v=20261112u';
+import {H,key,point,route,LINK_AT,linkLength} from './world.mjs?v=20261112v';
+import {SITE,toGeo} from './realworld.mjs?v=20261112v';
 
 export function frames(sim,a){const w=sim.world,room=w.roomAt(a)??w.roomContaining(a),dock=sim.home,est=a===sim.robot?a.localizer?.est:null,geo=toGeo(a.x,a.z,a.f*H);
  return {world:{x:+a.x.toFixed(2),y:+(a.f*H).toFixed(2),z:+a.z.toFixed(2)},grid:{i:Math.round(a.x),j:Math.round(a.z),floor:a.f},topology:{floor:`L${a.f+1}`,room:room?.name??'stair / lift',type:room?.type??'circulation'},

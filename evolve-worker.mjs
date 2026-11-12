@@ -1,7 +1,7 @@
 // Web Worker: runs one environment genome headlessly. Messages:
 //   {cmd:'run', id, genome, seconds, live, clockStart, weather}  -> {id, type:'tick'|'done', ...}
 //   {cmd:'stop', id}
-import {createEval,snapshot} from './evaluate.mjs?v=20261112u';
+import {createEval,snapshot} from './evaluate.mjs?v=20261112v';
 let current=null;
 self.onmessage=e=>{const m=e.data;if(m.cmd==='stop'){if(current&&(m.id===undefined||current.id===m.id))current.stopped=true;return;}
  if(m.cmd!=='run')return;if(current)current.stopped=true;const job={id:m.id,stopped:false};current=job;
