@@ -11,10 +11,11 @@
 //  * NOT full SLAM: by default the map is registered with the simulator's body pose
 //    (MAP_POSE='truth', i.e. "mapping with known poses"). Setting MAP_POSE='estimate' builds the
 //    map from the estimate instead; without loop closure that drifts by up to ~0.5 m along the
-//    24 m corridor, so it is kept as an experimental switch rather than the default.
-import {W,D,H,NAV_BAND,EYE,key} from './world.mjs?v=20261112b';
+//    48 m corridors, so it is kept as an experimental switch rather than the default.
+import {W,D,H,FLOORS,NAV_BAND,EYE,key} from './world.mjs?v=20261112t';
 
 export const MAP_POSE={mode:'truth'};
+const PER_FLOOR=fn=>Array.from({length:FLOORS},fn);
 // Cells are centred on multiples of RES so that 0.12 m walls on integer lines fall inside a
 // single cell instead of straddling two (which lets grazing rays erase them).
 export const RES=.25,NX=Math.round(W/RES)+1,NZ=Math.round(D/RES)+1;
@@ -27,7 +28,7 @@ const L_FREE=-.45,L_OCC=.9,L_MIN=-3,L_MAX=3.5,OCC=.7,FREE=-.7;
 export function rng(seed=7){let s=seed>>>0||1;const u=()=>{s^=s<<13;s>>>=0;s^=s>>17;s^=s<<5;s>>>=0;return s/4294967296;};return {u,n:()=>{let a=0;for(let i=0;i<6;i++)a+=u();return (a-3)*Math.SQRT2;}};}
 
 export class OccupancyMap{
- constructor(){this.L=[0,1].map(()=>new Float32Array(NX*NZ));this.C=[0,1].map(()=>new Float32Array(NX*NZ));this.seen=[0,1].map(()=>new Uint8Array(NX*NZ));this.hitH=[0,1].map(()=>new Float32Array(NX*NZ));this.time=[0,1].map(()=>new Float32Array(NX*NZ));this.mx=[0,1].map(()=>new Float32Array(NX*NZ));this.mz=[0,1].map(()=>new Float32Array(NX*NZ));this.mn=[0,1].map(()=>new Uint16Array(NX*NZ));this.version=0;}
+ constructor(){this.L=PER_FLOOR(()=>new Float32Array(NX*NZ));this.C=PER_FLOOR(()=>new Float32Array(NX*NZ));this.seen=PER_FLOOR(()=>new Uint8Array(NX*NZ));this.hitH=PER_FLOOR(()=>new Float32Array(NX*NZ));this.time=PER_FLOOR(()=>new Float32Array(NX*NZ));this.mx=PER_FLOOR(()=>new Float32Array(NX*NZ));this.mz=PER_FLOOR(()=>new Float32Array(NX*NZ));this.mn=PER_FLOOR(()=>new Uint16Array(NX*NZ));this.version=0;}
  idx(ix,iz){return ix>=0&&iz>=0&&ix<NX&&iz<NZ?iz*NX+ix:-1;}
  state(f,i){if(i<0)return 0;const l=this.L[f][i],c=this.C[f][i];if(l>OCC||c>OCC)return 2;if(this.seen[f][i]&&(l<FREE||c<FREE))return 1;return 0;}
  stateAt(x,z,f){return this.state(f,this.idx(cellOf(x),cellOf(z)));}

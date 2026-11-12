@@ -8,48 +8,49 @@ import {EffectComposer} from 'three/addons/postprocessing/EffectComposer.js';
 import {RenderPass} from 'three/addons/postprocessing/RenderPass.js';
 import {GTAOPass} from 'three/addons/postprocessing/GTAOPass.js';
 import {OutputPass} from 'three/addons/postprocessing/OutputPass.js';
-import {W,D,H,CEILING,STAIR_PATH,key} from './world.mjs?v=20261112b';
-import {TYPES} from './catalog.mjs?v=20261112b';
-import {RES,NX,NZ} from './mapping.mjs?v=20261112b';
-import {createMaterials,FLOOR_FINISH,CATEGORY_COLOURS,ROOM_COLOURS} from './materials.mjs?v=20261112b';
-import {Kit,buildObject,metricUV} from './furniture.mjs?v=20261112b';
+import {W,D,H,FLOORS,CEILING,LINKS,key,linkById} from './world.mjs?v=20261112t';
+import {CORE,ENTRANCE,stairLocal} from './building.mjs?v=20261112t';
+import {TYPES} from './catalog.mjs?v=20261112t';
+import {RES,NX,NZ} from './mapping.mjs?v=20261112t';
+import {createMaterials,FLOOR_FINISH,CATEGORY_COLOURS,ROOM_COLOURS} from './materials.mjs?v=20261112t';
+import {Kit,buildObject,metricUV} from './furniture.mjs?v=20261112t';
 
-const EXPLODE=9,CUT=1.3;
+const EXPLODE=8.5,CUT=1.3,CX=W/2,CZ=D/2;
 export function createScene(container,sim,onSelect,onPick=()=>{}){
  const renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true,powerPreference:'high-performance'});
  renderer.setPixelRatio(Math.min(devicePixelRatio,1.75));renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=.95;renderer.localClippingEnabled=true;container.appendChild(renderer.domElement);
- const scene=new THREE.Scene();scene.background=new THREE.Color('#e9ece6');scene.fog=new THREE.Fog('#e9ece6',70,160);
+ const scene=new THREE.Scene();scene.background=new THREE.Color('#e9ece6');scene.fog=new THREE.Fog('#e9ece6',150,340);
  const pmrem=new THREE.PMREMGenerator(renderer);scene.environment=pmrem.fromScene(new RoomEnvironment(),.04).texture;scene.environmentIntensity=.55;
- const camera=new THREE.PerspectiveCamera(38,1,.05,300);camera.position.set(36,30,40);
+ const camera=new THREE.PerspectiveCamera(38,1,.05,700);camera.position.set(CX+34,40,CZ+50);
  const pov=new THREE.PerspectiveCamera(70,1,.05,60);
- const controls=new OrbitControls(camera,renderer.domElement);controls.target.set(12,1.5,9);controls.enableDamping=true;controls.maxPolarAngle=Math.PI*.495;controls.minDistance=3;controls.maxDistance=95;
+ const controls=new OrbitControls(camera,renderer.domElement);controls.target.set(CX,1.5,CZ);controls.enableDamping=true;controls.maxPolarAngle=Math.PI*.495;controls.minDistance=3;controls.maxDistance=240;
  const M=createMaterials(renderer.capabilities.getMaxAnisotropy());
 
  // Lighting: sky + sun with soft shadows; warm interior lights driven by the simulation's room light state.
- const hemi=new THREE.HemisphereLight('#fdfbf5','#b8b2a5',.55);scene.add(hemi);
- const sun=new THREE.DirectionalLight('#fff1dc',2.6);sun.position.set(-14,26,30);sun.target.position.set(12,0,9);sun.castShadow=true;sun.shadow.mapSize.set(4096,4096);Object.assign(sun.shadow.camera,{left:-24,right:24,top:24,bottom:-24,near:5,far:90});sun.shadow.bias=-.0004;sun.shadow.normalBias=.03;scene.add(sun,sun.target);
+ const hemi=new THREE.HemisphereLight('#fdfbf5','#b8b2a5',.75);scene.add(hemi);
+ const sun=new THREE.DirectionalLight('#fff1dc',2.6);sun.position.set(CX-26,46,CZ+40);sun.target.position.set(CX,0,CZ);sun.castShadow=true;sun.shadow.mapSize.set(4096,4096);Object.assign(sun.shadow.camera,{left:-36,right:36,top:36,bottom:-36,near:5,far:160});sun.shadow.bias=-.0004;sun.shadow.normalBias=.03;scene.add(sun,sun.target);
 
  // ---------------------------------------------------------------- architecture ---
- const floorGroups=[0,1].map(f=>{const g=new THREE.Group();g.name=`floor-${f}`;scene.add(g);return g;});
- const archMats=[0,1].map(()=>{const clip=new THREE.Plane(new THREE.Vector3(0,-1,0),CUT);const c=(m)=>{const x=m.clone();x.clippingPlanes=[clip];x.clipShadows=true;return x;};return {clip,wall:c(M.wallPaint),accent:c(M.wallAccent),trim:c(M.trim),frame:c(M.frame),door:c(M.doorWood),glass:c(M.glass),wframe:c(M.windowFrame),blind:c(M.blind),handle:c(M.chrome),glassDoor:c(M.glass)};});
- const ground=new THREE.Mesh(new THREE.PlaneGeometry(220,220),new THREE.MeshStandardMaterial({color:'#d9ddd2',roughness:1}));ground.rotation.x=-Math.PI/2;ground.position.y=-.32;ground.receiveShadow=true;scene.add(ground);
- const site=new Kit();site.boxMM(-3,31,-.33,-.3,-3,21,M.concrete);site.boxMM(10.5,13.5,-.3,-.02,18.12,20.5,M.terrazzo);scene.add(site.build({cast:false}));
+ const floorGroups=Array.from({length:FLOORS},(_,f)=>{const g=new THREE.Group();g.name=`floor-${f}`;scene.add(g);return g;});
+ const archMats=Array.from({length:FLOORS},()=>{const clip=new THREE.Plane(new THREE.Vector3(0,-1,0),CUT);const c=(m)=>{const x=m.clone();x.clippingPlanes=[clip];x.clipShadows=true;return x;};return {clip,wall:c(M.wallPaint),accent:c(M.wallAccent),trim:c(M.trim),frame:c(M.frame),door:c(M.doorWood),glass:c(M.glass),wframe:c(M.windowFrame),blind:c(M.blind),handle:c(M.chrome),glassDoor:c(M.glass)};});
+ const ground=new THREE.Mesh(new THREE.PlaneGeometry(400,400),new THREE.MeshStandardMaterial({color:'#d9ddd2',roughness:1}));ground.rotation.x=-Math.PI/2;ground.position.y=-.32;ground.receiveShadow=true;scene.add(ground);
+ const site=new Kit();site.boxMM(-6,W+6,-.33,-.3,-4,D+8,M.concrete);site.boxMM(ENTRANCE.x-2.5,ENTRANCE.x+2.5,-.3,-.02,D+.12,D+4,M.terrazzo);scene.add(site.build({cast:false}));
  const ceilings=[],capGroups=[],lights=new Map(),roomFloors=new Map(),archMeshes=[];
  const windowsBySide=(f,side)=>sim.world.windows.filter(w=>w.f===f&&w.side===side);
- for(let f=0;f<2;f++){
+ for(let f=0;f<FLOORS;f++){
   const g=floorGroups[f],A=archMats[f],k=new Kit(),kt=new Kit(),caps=new Kit();
   k.boxMM(-.125,W+.125,-.3,0,-.125,D+.125,M.concrete);
   for(const r of sim.world.rooms.filter(r=>r.f===f)){const b=r.bounds,fin=M[FLOOR_FINISH[r.type]??'oak'];const mesh=new THREE.Mesh(metricUV(new THREE.BoxGeometry(b.x1-b.x0,.01,b.z1-b.z0)),fin);mesh.position.set((b.x0+b.x1)/2,.005,(b.z0+b.z1)/2);mesh.receiveShadow=true;g.add(mesh);roomFloors.set(r.id,mesh);mesh.userData.room=r.id;
    const ceil=new THREE.Mesh(new THREE.PlaneGeometry(b.x1-b.x0,b.z1-b.z0),M.ceiling);ceil.rotation.x=Math.PI/2;ceil.position.set((b.x0+b.x1)/2,CEILING,(b.z0+b.z1)/2);ceil.castShadow=false;g.add(ceil);ceilings.push(ceil);
    const lk=new Kit();const nx=Math.max(1,Math.round((b.x1-b.x0)/2.6)),nz=Math.max(1,Math.round((b.z1-b.z0)/2.4));for(let i=0;i<nx;i++)for(let j=0;j<nz;j++)lk.boxMM(b.x0+(i+.5)*(b.x1-b.x0)/nx-.3,b.x0+(i+.5)*(b.x1-b.x0)/nx+.3,CEILING-.012,CEILING-.002,b.z0+(j+.5)*(b.z1-b.z0)/nz-.3,b.z0+(j+.5)*(b.z1-b.z0)/nz+.3,M.lightPanel);const lp=lk.build({cast:false});g.add(lp);ceilings.push(lp);
-   const light=new THREE.PointLight('#ffdcb0',r.kind==='corridor'?9:14,r.kind==='corridor'?11:9,1.6);light.position.set((b.x0+b.x1)/2,CEILING-.35,(b.z0+b.z1)/2);g.add(light);lights.set(r.id,light);}
+   const span=Math.hypot(b.x1-b.x0,b.z1-b.z0),light=new THREE.PointLight('#ffdcb0',r.kind==='corridor'?9:14,Math.max(9,span*.75),1.6);light.userData.f=f;light.position.set((b.x0+b.x1)/2,CEILING-.35,(b.z0+b.z1)/2);g.add(light);lights.set(r.id,light);}
   // Walls are split around window openings; doors already appear as gaps in the wall boxes.
-  for(const wb of sim.world.wallBoxes.filter(w=>w.f===f)){const alongX=wb.x1-wb.x0>wb.z1-wb.z0;let side=null;if(wb.kind==='exterior')side=alongX?(wb.z0<1?'N':'S'):(wb.x0<1?'W':'E');
+  for(const wb of sim.world.wallBoxes.filter(w=>w.f===f&&w.kind!=='core')){const alongX=wb.x1-wb.x0>wb.z1-wb.z0;let side=null;if(wb.kind==='exterior')side=wb.side;const TOP=wb.kind==='exterior'?H-.3:CEILING;
    const openings=side?windowsBySide(f,side).map(w=>({a:(alongX?w.x:w.z)-w.width/2,b:(alongX?w.x:w.z)+w.width/2,sill:w.sill,head:w.head})).filter(o=>o.a>=(alongX?wb.x0:wb.z0)-.01&&o.b<=(alongX?wb.x1:wb.z1)+.01):[];
-   if(side==='S'&&f===0)openings.push({a:11.5,b:12.5,sill:0,head:2.12,door:true});
+   if(side==='S'&&f===ENTRANCE.f)openings.push({a:ENTRANCE.x-.5,b:ENTRANCE.x+.5,sill:0,head:2.12,door:true});
    openings.sort((p,q)=>p.a-q.a);let s=alongX?wb.x0:wb.z0;const e=alongX?wb.x1:wb.z1;
    const piece=(a,b,y0,y1)=>{if(b-a<.002||y1-y0<.002)return;if(alongX){k.boxMM(a,b,y0,y1,wb.z0,wb.z1,A.wall);if(y0<CUT&&y1>CUT-.01)caps.boxMM(a,b,0,.02,wb.z0,wb.z1,M.cap);}else{k.boxMM(wb.x0,wb.x1,y0,y1,a,b,A.wall);if(y0<CUT&&y1>CUT-.01)caps.boxMM(wb.x0,wb.x1,0,.02,a,b,M.cap);}};
-   for(const o of openings){piece(s,o.a,0,CEILING);piece(o.a,o.b,0,o.sill);piece(o.a,o.b,o.head,CEILING);s=o.b;}piece(s,e,0,CEILING);
+   for(const o of openings){piece(s,o.a,0,TOP);piece(o.a,o.b,0,o.sill);piece(o.a,o.b,o.head,TOP);s=o.b;}piece(s,e,0,TOP);
    // Baseboards and crown trim on every room-facing face.
    const faces=wb.kind==='exterior'?[{N:'z1',S:'z0',W:'x1',E:'x0'}[side]]:alongX?['z0','z1']:['x0','x1'];
    for(const fc of faces){const out=fc.endsWith('1')?1:-1,c=wb[fc];for(const [y0,y1,t]of [[0,.09,.014],[CEILING-.07,CEILING,.025]]){let s2=alongX?wb.x0:wb.z0;const segs=[];for(const o of openings.filter(o=>o.door||y0>=o.sill&&y1<=o.head||y0<o.sill&&o.sill<.1)){segs.push([s2,o.a]);s2=o.b;}segs.push([s2,e]);for(const [a,b]of segs)if(b-a>.02){if(alongX)kt.boxMM(a,b,y0,y1,out>0?c:c-t,out>0?c+t:c,A.trim);else kt.boxMM(out>0?c:c-t,out>0?c+t:c,y0,y1,a,b,A.trim);}}}
@@ -66,23 +67,39 @@ export function createScene(container,sim,onSelect,onPick=()=>{}){
  }
  // Door leaves rotate about their hinge; glass doors for meeting rooms and the office.
  const doorMeshes=new Map();
- for(const d of sim.world.doors){const A=archMats[d.f],pivot=new THREE.Group(),k=new Kit(),glassy=['room-0-1','room-1-1','room-1-2','room-0-4'].includes(d.room)||d.exterior;
+ for(const d of sim.world.doors){const A=archMats[d.f],pivot=new THREE.Group(),k=new Kit(),glassy=!!d.glass||d.exterior;
   const L=d.exterior?.92:.92,hgt=2.03;if(glassy){k.boxMM(0,L,0,hgt,-.02,.02,A.wframe);}else k.boxMM(0,L,0,hgt,-.02,.02,A.door,.004);
   const leaf=k.build();if(glassy){const gk=new Kit();gk.boxMM(.06,L-.06,.06,hgt-.06,-.008,.008,A.glassDoor);const gm=gk.build({cast:false});leaf.add(gm);leaf.children[0].geometry.dispose();const fk=new Kit();for(const [x0,x1,y0,y1]of [[0,.06,0,hgt],[L-.06,L,0,hgt],[0,L,0,.1],[0,L,hgt-.06,hgt]])fk.boxMM(x0,x1,y0,y1,-.02,.02,A.wframe);leaf.remove(leaf.children[0]);leaf.add(fk.build());}
   const hk=new Kit();for(const s of [-1,1]){hk.cyl(.012,.012,.05,L-.08,1.02,s*.045,A.handle,10,Math.PI/2);hk.box(.13,.018,.018,L-.13,1.02,s*.07,A.handle,.006);}for(const y of [.25,1.0,1.8])hk.cyl(.008,.008,.1,0,y,0,A.handle,8);leaf.add(hk.build());
   pivot.add(leaf);pivot.position.set(d.hinge.x,0,d.z);pivot.userData.objectId=d.id;floorGroups[d.f].add(pivot);doorMeshes.set(d.id,{pivot,angle:d.open?-d.swing*Math.PI/2:0});pivot.rotation.y=doorMeshes.get(d.id).angle;}
 
- // Enclosed stair hall east of the corridor, built from the agents' own 3D stair path.
- const stairGroup=new THREE.Group();floorGroups[0].add(stairGroup);
- {const k=new Kit(),gl=new Kit(),flight=(x,zA,zB,y0,y1)=>{const n=9,dz=(zB-zA)/n,dy=(y1-y0)/n;for(let i=0;i<n;i++){const z0=zA+dz*i,z1=zA+dz*(i+1),y=y0+dy*(i+1);k.boxMM(x-.45,x+.45,y-.04,y,Math.min(z0,z1)-.02,Math.max(z0,z1),M.oakFurniture);k.boxMM(x-.45,x+.45,y-dy,y-.04,dz>0?z0:z1-.01,dz>0?z0+.01:z1,M.trim);}
-   const len=Math.abs(zB-zA),ang=Math.atan2(y1-y0,len),mid=(zA+zB)/2;for(const s of [-1,1])k.add(new THREE.BoxGeometry(.04,.3,Math.hypot(len,y1-y0)),M.trim,x+s*.47,(y0+y1)/2-.08,mid,dz>0?-ang:ang);};
-  flight(25.05,9.6,12.4,0,H/2);flight(26.05,12.4,9.6,H/2,H);k.boxMM(24.6,26.5,H/2-.12,H/2,12.4,13.45,M.oakFurniture);k.boxMM(24.1,26.5,H-.18,H,8.0,9.6,M.concrete);k.boxMM(24.0,27.0,-.3,0,7.9,13.6,M.concrete);
-  k.boxMM(24.0,27.0,-.3,-.02,7.8,7.9,M.concrete);for(const [x0,x1,z0,z1]of [[26.9,27.0,7.9,13.6],[24,27,13.5,13.6],[24,27,7.8,7.9],[24.0,24.1,9.6,13.6]])k.boxMM(x0,x1,0,.12,z0,z1,M.trim);
-  for(const [x,y0,y1,z0,z1]of [[25.53,0,H/2,9.6,12.4],[25.57,H/2,H,9.6,12.4]])gl.boxMM(x-.006,x+.006,y0+.05,y1+.95,z0,z1,M.glass);for(const z of [7.85,13.55])gl.boxMM(24,27,0,2*H,z-.012,z+.012,M.glass);gl.boxMM(26.94,26.96,0,2*H,7.9,13.6,M.glass);
-  for(let x=24;x<=27.01;x+=1.0)for(const z of [7.85,13.55])k.boxMM(x-.03,x+.03,0,2*H,z-.03,z+.03,M.windowFrame);for(let z=7.9;z<=13.61;z+=1.14)k.boxMM(26.92,26.98,0,2*H,z-.03,z+.03,M.windowFrame);
-  k.boxMM(25.45,25.65,.95,1.0,9.6,12.4,M.walnut);k.boxMM(24,27,2*H-.05,2*H+.1,7.8,13.6,M.concrete);
-  stairGroup.add(k.build(),gl.build({cast:false}));}
- const stairLink=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(23,H+.05,9),new THREE.Vector3(23,EXPLODE+.05,9)]),new THREE.LineDashedMaterial({color:'#5a6b62',dashSize:.25,gapSize:.18}));stairLink.computeLineDistances();scene.add(stairLink);
+ // Stair towers outside the facade (one flight per floor, built from the agents' own path
+ // geometry) and the lift core with its two cars.
+ const tbox=(k,l,u0,u1,y0,y1,v0,v1,mat)=>{const a=stairLocal(l,u0,v0),b=stairLocal(l,u1,v1);k.boxMM(Math.min(a.x,b.x),Math.max(a.x,b.x),y0,y1,Math.min(a.z,b.z),Math.max(a.z,b.z),mat);};
+ for(const l of LINKS.filter(l=>l.kind==='stair'))for(let f=l.floors[0];f<=l.floors[1];f++){
+  const k=new Kit(),gl=new Kit(),top=f===l.floors[1],bottom=f===l.floors[0];
+  if(bottom)tbox(k,l,0,3,-.3,0,-1.1,4.6,M.concrete);else tbox(k,l,.1,2.5,-.18,0,-1.1,.6,M.concrete);
+  if(!top){const n=11,run=(u,vA,vB,y0,y1)=>{const dv=(vB-vA)/n,dy=(y1-y0)/n;for(let i=0;i<n;i++){const v0=vA+dv*i,v1=vA+dv*(i+1),y=y0+dy*(i+1);tbox(k,l,u-.45,u+.45,y-.04,y,Math.min(v0,v1)-.02,Math.max(v0,v1),M.oakFurniture);tbox(k,l,u-.45,u+.45,y-dy,y-.04,dv>0?v0:v1-.01,dv>0?v0+.01:v1,M.trim);}
+     const len=Math.abs(vB-vA),ang=Math.atan2(y1-y0,len),mid=(vA+vB)/2;for(const sg of [-1,1]){const p=stairLocal(l,u+sg*.47,mid);k.add(new THREE.BoxGeometry(.04,.3,Math.hypot(len,y1-y0)),M.trim,p.x,(y0+y1)/2-.08,p.z,dv>0?-ang:ang);}};
+   run(1.05,.6,3.4,0,H/2);run(2.05,3.4,.6,H/2,H);tbox(k,l,.6,2.5,H/2-.12,H/2,3.4,4.45,M.oakFurniture);
+   tbox(gl,l,1.524,1.536,.05,H/2+.95,.6,3.4,M.glass);tbox(gl,l,1.564,1.576,H/2+.05,H+.95,.6,3.4,M.glass);tbox(k,l,1.45,1.65,.95,1.0,.6,3.4,M.walnut);}
+  // Glazed enclosure with mullions on the three outer faces.
+  tbox(gl,l,2.94,2.96,0,H,-1.1,4.6,M.glass);for(const v of [-1.13,4.57])tbox(gl,l,0,3,0,H,v-.012,v+.012,M.glass);
+  for(let u=0;u<=3.01;u+=1)for(const v of [-1.13,4.57])tbox(k,l,u-.03,u+.03,0,H,v-.03,v+.03,M.windowFrame);for(let v=-1.1;v<=4.61;v+=1.14)tbox(k,l,2.92,2.98,0,H,v-.03,v+.03,M.windowFrame);
+  tbox(k,l,0,3,H-.35,H-.3,-1.15,4.6,M.trim);if(top)tbox(k,l,0,3,H-.3,H+.1,-1.15,4.6,M.concrete);
+  const sg=new THREE.Group();sg.userData.link=l.id;sg.add(k.build(),gl.build({cast:false}));floorGroups[f].add(sg);
+ }
+ // Lift core: shell walls (section-cut like other walls), shaft divider, landing doors; cars move with riders.
+ const lifts=LINKS.filter(l=>l.kind==='lift'),coreCaps=[];
+ for(let f=0;f<FLOORS;f++){const A=archMats[f],k=new Kit(),caps=new Kit(),t=.2,{x0,x1,z0,z1}=CORE;const wall=(a,b,c,d,y0=0,y1=CEILING)=>{k.boxMM(a,b,y0,y1,c,d,A.wall);if(y0<CUT&&y1>CUT)caps.boxMM(a,b,0,.02,c,d,M.cap);};
+  let xs=x0;for(const l of lifts){wall(xs,l.landing.x-.65,z0,z0+t);wall(l.landing.x-.65,l.landing.x+.65,z0,z0+t,2.3,CEILING);xs=l.landing.x+.65;}wall(xs,x1,z0,z0+t);
+  wall(x0,x1,z1-t,z1);wall(x0,x0+t,z0,z1);wall(x1-t,x1,z0,z1);wall((x0+x1)/2-.1,(x0+x1)/2+.1,z0,z1);
+  for(const l of lifts){const x=l.landing.x;for(const sg of [-1,1])k.boxMM(x+sg*.3-.29,x+sg*.3+.29,0,2.2,z0-.03,z0+.01,M.metal);k.boxMM(x-.68,x+.68,2.2,2.32,z0-.05,z0+.02,M.chrome);for(const sg of [-1,1])k.boxMM(x+sg*.65-.04,x+sg*.65+.04,0,2.32,z0-.05,z0+.02,M.chrome);k.boxMM(x+.8,x+.9,1.05,1.25,z0-.04,z0,M.led);}
+  k.boxMM(x0+t,x1-t,-.02,.0,z0+t,z1-t,M.concrete);
+  floorGroups[f].add(k.build());const cm=caps.build({cast:false});cm.position.y=CUT-.01;floorGroups[f].add(cm);coreCaps.push(cm);}
+ const liftCars=new Map();for(const l of lifts){const k=new Kit();k.boxMM(-.72,.72,0,.06,-.72,.72,M.metal);k.boxMM(-.72,.72,2.3,2.36,-.72,.72,M.metal);for(const [a,b]of [[-.72,-.66],[.66,.72]])for(const [c,d]of [[-.72,-.66],[.66,.72]])k.boxMM(a,b,.06,2.3,c,d,M.chrome);
+  k.boxMM(-.72,-.7,.06,2.3,-.66,.66,M.glass);k.boxMM(.7,.72,.06,2.3,-.66,.66,M.glass);k.boxMM(-.66,.66,.06,2.3,.7,.72,M.glass);k.boxMM(-.6,.6,.95,1.0,.62,.66,M.chrome);const car=k.build();car.position.set(l.car.x,0,l.car.z);car.userData={link:l.id,y:0,f:l.floors[0]};scene.add(car);liftCars.set(l.id,car);}
+ const linkLines=[];for(const l of LINKS)for(let f=l.floors[0];f<l.floors[1];f++){const ln=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(l.landing.x,0,l.landing.z),new THREE.Vector3(l.landing.x,1,l.landing.z)]),new THREE.LineDashedMaterial({color:l.kind==='lift'?'#6f5bd1':'#5a6b62',dashSize:.25,gapSize:.18}));ln.userData={f,l};ln.computeLineDistances();scene.add(ln);linkLines.push(ln);}
 
  // ---------------------------------------------------------------- furniture & objects ---
  const objectMeshes=new Map(),smallObjects=[];
@@ -106,8 +123,8 @@ export function createScene(container,sim,onSelect,onPick=()=>{}){
  // ---------------------------------------------------------------- overlays ---
  const overlay=new THREE.Group();scene.add(overlay);
  const navGroup=new THREE.Group(),mapGroup=new THREE.Group(),semGroup=new THREE.Group(),graphGroup=new THREE.Group(),colliderGroup=new THREE.Group(),sensorGroup=new THREE.Group();overlay.add(navGroup,mapGroup,semGroup,graphGroup,colliderGroup,sensorGroup);
- const mapTex=[0,1].map(()=>{const data=new Uint8Array(NX*NZ*4),t=new THREE.DataTexture(data,NX,NZ,THREE.RGBAFormat);t.magFilter=THREE.NearestFilter;t.colorSpace=THREE.SRGBColorSpace;t.needsUpdate=true;return t;});
- const mapPlanes=[0,1].map(f=>{const m=new THREE.Mesh(new THREE.PlaneGeometry(NX*RES,NZ*RES),new THREE.MeshBasicMaterial({map:mapTex[f],transparent:true,depthWrite:false}));m.rotation.x=-Math.PI/2;m.position.set(NX*RES/2-RES/2,.06,NZ*RES/2-RES/2);m.renderOrder=5;floorGroups[f].add(m);m.visible=false;return m;});
+ const mapTex=Array.from({length:FLOORS},()=>{const data=new Uint8Array(NX*NZ*4),t=new THREE.DataTexture(data,NX,NZ,THREE.RGBAFormat);t.magFilter=THREE.NearestFilter;t.colorSpace=THREE.SRGBColorSpace;t.needsUpdate=true;return t;});
+ const mapPlanes=Array.from({length:FLOORS},(_,f)=>{const m=new THREE.Mesh(new THREE.PlaneGeometry(NX*RES,NZ*RES),new THREE.MeshBasicMaterial({map:mapTex[f],transparent:true,depthWrite:false}));m.rotation.x=-Math.PI/2;m.position.set(NX*RES/2-RES/2,.06,NZ*RES/2-RES/2);m.renderOrder=5;floorGroups[f].add(m);m.visible=false;return m;});
  const selBox=new THREE.Box3Helper(new THREE.Box3(),new THREE.Color('#ff7a3d'));selBox.visible=false;scene.add(selBox);
  const clear=g=>{for(const o of [...g.children]){g.remove(o);o.traverse?.(x=>{x.geometry?.dispose();if(x.material&&!x.material.userData?.shared){x.material.map?.dispose();x.material.dispose?.();}});}};
  const lineMat=(color,opacity=1,dashed=false)=>dashed?new THREE.LineDashedMaterial({color,dashSize:.25,gapSize:.15,transparent:true,opacity}):new THREE.LineBasicMaterial({color,transparent:true,opacity});
@@ -118,12 +135,16 @@ export function createScene(container,sim,onSelect,onPick=()=>{}){
  const aoPlane=new THREE.Plane(new THREE.Vector3(0,-1,0),CUT);
  const composer=new EffectComposer(renderer),renderPass=new RenderPass(scene,camera),gtao=new GTAOPass(scene,camera,1,1),output=new OutputPass();gtao.blendIntensity=.85;try{gtao.updateGtaoMaterial({radius:.45,distanceExponent:1.4,thickness:1.2,scale:1,samples:12});gtao.updatePdMaterial({lumaPhi:10,depthPhi:2,normalPhi:3,radius:4,rings:2,samples:12});}catch{}composer.addPass(renderPass);composer.addPass(gtao);composer.addPass(output);
  function setQuality(q){quality=q;renderer.shadowMap.enabled=q!=='fast';sun.castShadow=q!=='fast';sun.shadow.mapSize.set(q==='high'?4096:2048,q==='high'?4096:2048);sun.shadow.map?.dispose();sun.shadow.map=null;renderer.setPixelRatio(q==='fast'?1:Math.min(devicePixelRatio,q==='high'?1.75:1.5));resize();for(const l of lights.values())l.castShadow=false;applyWalls();scene.traverse(o=>{if(o.material)o.material.needsUpdate=true;});}
- function applyWalls(){const full=wallsFull||mode==='robot';for(let f=0;f<2;f++){archMats[f].clip.constant=full?1e3:yOf(f)+CUT;capGroups[f].visible=!full;}for(const c of ceilings)c.visible=mode==='robot'||wallsFull;
+ function applyWalls(){const full=wallsFull||mode==='robot';for(const c of coreCaps)c.visible=!full;for(let f=0;f<FLOORS;f++){archMats[f].clip.constant=full?1e3:yOf(f)+CUT;capGroups[f].visible=!full;}for(const c of ceilings)c.visible=mode==='robot'||wallsFull;
   // The AO pre-pass uses an override material, so it must receive the same section cut; in the
   // exploded two-floor view no single plane fits both floors, so AO is skipped there.
   aoPlane.constant=yOf(floor==='both'?0:Number(floor))+CUT;gtao.normalMaterial.clippingPlanes=full?[]:[aoPlane];gtao.normalMaterial.needsUpdate=true;gtao.enabled=quality==='high'&&(full||floor!=='both');}
- function layoutFloors(){for(let f=0;f<2;f++){floorGroups[f].position.y=yOf(f);floorGroups[f].visible=floor==='both'||Number(floor)===f||(floor==='1'&&f===0&&false);}stairGroup.visible=floor!=='1';stairLink.visible=floor==='both';applyWalls();lastOverlay=-1;lastMap=-1;}
- function setFloor(f){floor=f;layoutFloors();if(f==='0'){controls.target.set(12,.8,9);camera.position.set(30,24,34);}else if(f==='1'){controls.target.set(12,H+.8,9);camera.position.set(30,24+H,34);}else{controls.target.set(12,2.5,9);camera.position.set(36,30,40);}}
+ function layoutFloors(){for(let f=0;f<FLOORS;f++){floorGroups[f].position.y=yOf(f);floorGroups[f].visible=floor==='both'||Number(floor)===f;}
+  // Point lights only for the floor in view (keeps the light count, and the shader cost, small).
+  for(const l of lights.values())l.visible=floor!=='both'&&Number(floor)===l.userData.f;
+  for(const ln of linkLines){ln.visible=floor==='both';const a=ln.geometry.attributes.position;a.setY(0,yOf(ln.userData.f)+H+.05);a.setY(1,yOf(ln.userData.f+1)+.05);a.needsUpdate=true;ln.computeLineDistances();}
+  applyWalls();lastOverlay=-1;lastMap=-1;}
+ function setFloor(f){floor=f;layoutFloors();if(f==='both'){controls.target.set(CX,EXPLODE*(FLOORS-1)/2,CZ);camera.position.set(CX+62,EXPLODE*(FLOORS-1)/2+46,CZ+78);}else{const y=Number(f)*H;controls.target.set(CX,y+.8,CZ);camera.position.set(CX+30,y+38,CZ+44);}}
 
  // Semantic colouring: objects the robot has recognised take their category colour; unknown ones fade.
  const semMats=new Map(),ghost=new THREE.MeshStandardMaterial({color:'#c9ccc8',transparent:true,opacity:.18,depthWrite:false});
@@ -131,7 +152,7 @@ export function createScene(container,sim,onSelect,onPick=()=>{}){
  function applyMaterials(){const belief=sim.robot.belief;for(const [id,g]of objectMeshes){const o=sim.world.object(id)??sim.world.objects.find(x=>x.id===id),b=belief.objects.get(id),known=b&&b.present!==false;
    g.traverse(m=>{if(!m.isMesh)return;m.material=mode==='semantic'?(known?semMat(o?.category):ghost):mode==='mapping'?ghost:m.userData.base;});}
   for(const [id,r]of roomFloors){const room=sim.world.rooms.find(x=>x.id===id);if(mode==='semantic'){const reg=[...belief.regions.values()].find(g=>g.cells.some(c=>{const [x,z,f]=c.split(',').map(Number);return f===room.f&&x>=room.bounds.x0&&x<=room.bounds.x1&&z>=room.bounds.z0&&z<=room.bounds.z1;}));r.material=new THREE.MeshStandardMaterial({color:ROOM_COLOURS[reg?.label??'unknown'],roughness:.9,transparent:!reg,opacity:reg?1:.5});}else if(r.userData.base){r.material=r.userData.base;}if(!r.userData.base)r.userData.base=M[FLOOR_FINISH[room.type]??'oak'];}
-  const ghostArch=mode==='mapping'||mode==='semantic';for(let f=0;f<2;f++){const A=archMats[f];for(const k of ['wall','trim','frame','door','wframe','blind']){A[k].transparent=ghostArch;A[k].opacity=ghostArch?(mode==='mapping'?.18:.45):1;A[k].depthWrite=!ghostArch;A[k].needsUpdate=true;}}}
+  const ghostArch=mode==='mapping'||mode==='semantic';for(let f=0;f<FLOORS;f++){const A=archMats[f];for(const k of ['wall','trim','frame','door','wframe','blind']){A[k].transparent=ghostArch;A[k].opacity=ghostArch?(mode==='mapping'?.18:.45):1;A[k].depthWrite=!ghostArch;A[k].needsUpdate=true;}}}
  function setMode(m){mode=m;applyWalls();applyMaterials();for(const p of mapPlanes)p.visible=m==='mapping';lastOverlay=-1;lastMap=-1;controls.enabled=m!=='robot';for(const {g}of agentMeshes.values())g.visible=true;}
 
  // ---------------------------------------------------------------- overlays per mode ---
@@ -148,7 +169,7 @@ export function createScene(container,sim,onSelect,onPick=()=>{}){
  function drawSensors(){clear(sensorGroup);const r=sim.robot,s=r.lastScan;if(!s||!['mapping','navigation','robot'].includes(mode)||!(floor==='both'||Number(floor)===r.f)||r.stair)return;const y=yOf(r.f);
   const seg=[];s.lidar.forEach((b,i)=>{if(i%3)return;const th=r.heading+b.a;seg.push(new THREE.Vector3(r.x,y+.18,r.z),new THREE.Vector3(r.x+Math.cos(th)*b.r,y+.18,r.z+Math.sin(th)*b.r));});sensorGroup.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(seg),lineMat('#d9534f',.18)));
   const pts=s.depth.points.map(p=>new THREE.Vector3(p.x,y+p.y,p.z));if(pts.length)sensorGroup.add(new THREE.Points(new THREE.BufferGeometry().setFromPoints(pts),new THREE.PointsMaterial({color:'#2fb38f',size:.06,transparent:true,opacity:.9})));}
- function drawMap(){const r=sim.robot,map=r.map,belief=r.belief;for(let f=0;f<2;f++){const data=mapTex[f].image.data,fr=new Set();for(const c of map.frontiers(f,1))for(const [x,z]of c.cells)fr.add(z*NX+x);
+ function drawMap(){const r=sim.robot,map=r.map,belief=r.belief;for(let f=0;f<FLOORS;f++){if(floor!=='both'&&Number(floor)!==f)continue;const data=mapTex[f].image.data,fr=new Set();for(const c of map.frontiers(f,1))for(const [x,z]of c.cells)fr.add(z*NX+x);
    const regionCol=new Map();for(const g of belief.regions.values())if(g.f===f){const h=(ROOM_COLOURS[g.label]??'#bbbbbb').slice(1),c={r:parseInt(h.slice(0,2),16),g:parseInt(h.slice(2,4),16),b:parseInt(h.slice(4,6),16)};for(const k of g.cells){const [x,z]=k.split(',').map(Number);regionCol.set(`${x},${z}`,c);}}
    for(let iz=0;iz<NZ;iz++)for(let ix=0;ix<NX;ix++){const i=iz*NX+ix,s=map.state(f,i),o=((NZ-1-iz)*NX+ix)*4;
     if(fr.has(i)){data.set([242,176,58,235],o);}else if(s===2){data.set([34,44,48,240],o);}else if(s===1){const rc=regionCol.get(`${Math.round(ix*RES)},${Math.round(iz*RES)}`);if(rc)data.set([rc.r,rc.g,rc.b,200],o);else data.set([226,238,230,200],o);}
@@ -177,16 +198,17 @@ export function createScene(container,sim,onSelect,onPick=()=>{}){
  let frames=0,frameTime=0,lastT=performance.now();const stats={fps:0,drawCalls:0,triangles:0};
 
  function update(){const now=performance.now(),dt=now-lastT;lastT=now;frames++;frameTime+=dt;if(frameTime>1000){stats.fps=Math.round(frames*1000/frameTime);frames=0;frameTime=0;}
-  for(const a of sim.agents){if(!agentMeshes.has(a.id))makeAgent(a);const {g,cone,name}=agentMeshes.get(a.id);const p=a.renderPos;g.position.set(p?.x??a.x,p?p.y:yOf(a.f),p?.z??a.z);g.rotation.y=-a.heading;
-   g.visible=(floor==='both'||a.f===Number(floor)||a.stair&&floor==='0')&&!(mode==='robot'&&a===sim.robot);cone.visible=showCones&&(a.id===selected||a.type==='robot')&&mode!=='robot';name.visible=mode!=='robot';rings.get(a.id).material.opacity=a.id===selected?1:.35;}
+  for(const a of sim.agents){if(!agentMeshes.has(a.id))makeAgent(a);const {g,cone,name}=agentMeshes.get(a.id);const p=a.renderPos;g.position.set(p?.x??a.x,p?yOf(p.lo)+p.y:yOf(a.f),p?.z??a.z);g.rotation.y=-a.heading;
+   g.visible=(floor==='both'||(p?Number(floor)===p.lo||Number(floor)===a.stair?.to:a.f===Number(floor)))&&!(mode==='robot'&&a===sim.robot);cone.visible=showCones&&(a.id===selected||a.type==='robot')&&mode!=='robot';name.visible=mode!=='robot';rings.get(a.id).material.opacity=a.id===selected?1:.35;}
   for(const o of sim.world.objects){let g=objectMeshes.get(o.id);if(!g&&o.type!=='door'&&o.type!=='window'){addObject(o);g=objectMeshes.get(o.id);if(mode!=='realistic')applyMaterials();}if(!g)continue;g.visible=o.active!==false;if(o.solid){g.position.x=o.x;g.position.z=o.z;}}
   for(const d of sim.world.doors){const m=doorMeshes.get(d.id),target=d.open?-d.swing*Math.PI/2:0;m.angle+=(target-m.angle)*.15;m.pivot.rotation.y=m.angle;}
+  for(const [id,car]of liftCars){const rider=sim.agents.find(a=>a.stair?.link===id);if(rider?.renderPos){const p=rider.renderPos;car.userData.y=p.y;car.userData.f=p.lo;}const y=yOf(car.userData.f)+car.userData.y;car.position.y=y;car.visible=floor==='both'||(y>=yOf(Number(floor))-.5&&y<=yOf(Number(floor))+H-.5);}
   for(const r of sim.world.rooms){const l=lights.get(r.id);if(l)l.intensity+=((r.light?(r.kind==='corridor'?9:14):0)-l.intensity)*.1;}
   if(now-lastCull>400){lastCull=now;const cp=mode==='robot'?pov.position:camera.position;for(const g of smallObjects){const wp=g.getWorldPosition(new THREE.Vector3());g.visible=g.visible&&wp.distanceTo(cp)<(mode==='robot'?14:30);}}
   if(Math.abs(sim.time-lastOverlay)>.35||lastOverlay<0){drawNavigation();drawSensors();drawSemanticLabels();drawGraph();lastOverlay=sim.time;if(mode==='semantic')applyMaterials();}
   if(mode==='mapping'&&(Math.abs(sim.time-lastMap)>.6||lastMap<0)){drawMap();lastMap=sim.time;}
   if(showColliders&&colliderVersion!==sim.world.version)drawColliders();
-  let cam=camera;if(mode==='robot'){const r=sim.robot,p=r.renderPos;pov.position.set(p?.x??r.x,(p?p.y:yOf(r.f))+.95,p?.z??r.z);pov.lookAt(pov.position.x+Math.cos(r.heading),pov.position.y-.08,pov.position.z+Math.sin(r.heading));cam=pov;}else controls.update();
+  let cam=camera;if(mode==='robot'){const r=sim.robot,p=r.renderPos;pov.position.set(p?.x??r.x,(p?yOf(p.lo)+p.y:yOf(r.f))+.95,p?.z??r.z);pov.lookAt(pov.position.x+Math.cos(r.heading),pov.position.y-.08,pov.position.z+Math.sin(r.heading));cam=pov;}else controls.update();
   renderPass.camera=cam;gtao.camera=cam;if(gtao.enabled&&mode!=='robot')composer.render();else renderer.render(scene,cam);stats.drawCalls=renderer.info.render.calls;stats.triangles=renderer.info.render.triangles;
  }
  setFloor('both');setQuality('high');setMode('realistic');

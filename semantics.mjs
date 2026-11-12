@@ -8,8 +8,8 @@
 // true category and a persistent instance id (perfect data association); it does not run a
 // learned vision model. Room labels, zones, support relations, adjacency and access are inferred
 // from what has been observed, never read from the floor plan.
-import {TYPES,toWorld,localBoxToWorld,worldDir} from './catalog.mjs?v=20261112b';
-import {key,point,W,D,EYE} from './world.mjs?v=20261112b';
+import {TYPES,toWorld,localBoxToWorld,worldDir} from './catalog.mjs?v=20261112t';
+import {key,point,W,D,EYE,FLOORS,floorLabel} from './world.mjs?v=20261112t';
 
 export const ROOM_LABELS={workspace:'Open workspace',meeting:'Meeting room',pantry:'Pantry',print:'Print room',reception:'Reception',lounge:'Lounge',office:'Private office',server:'Server room',restroom:'Restroom',wellness:'Wellness room',corridor:'Corridor'};
 // Evidence that an observed object type contributes to each room type (rule-based recognition).
@@ -23,8 +23,8 @@ const EVIDENCE={workstation:{workspace:2.5,office:.6,server:.3},'office-chair':{
  'server-rack':{server:4},ups:{server:2.5},
  toilet:{restroom:4},vanity:{restroom:3},'hand-dryer':{restroom:2},toiletries:{restroom:1},
  treadmill:{wellness:4},'exercise-bike':{wellness:3},'weight-bench':{wellness:3},'dumbbell-rack':{wellness:2},dumbbells:{wellness:1},
- dock:{corridor:1},bin:{corridor:1},stairs:{corridor:2}};
-const STRUCTURAL=new Set(['door','window','hub','switch','outlet','stairs']);
+ dock:{corridor:1},bin:{corridor:1},stairs:{corridor:2},elevator:{corridor:2},'dining-table':{pantry:1.5}};
+const STRUCTURAL=new Set(['door','window','hub','switch','outlet','stairs','elevator']);
 const isFurniture=o=>!TYPES[o.type]?.small&&!STRUCTURAL.has(o.type)&&o.type!=='rug'||o.type==='dock';
 
 export function detectionRange(o){if(['door','window'].includes(o.type))return 7;const m=Math.max(o.size.w,o.size.d,o.size.h);return Math.min(6.5,1.4+m*9);}
@@ -72,7 +72,7 @@ export class SemanticBelief{
  // Segment the robot's 1 m navigation memory into rooms and classify each from evidence.
  segment(robot){
   const assign=new Map(),regions=[];
-  for(let f=0;f<2;f++){const doors=this.doorCells(f),seen=new Set();
+  for(let f=0;f<FLOORS;f++){const doors=this.doorCells(f),seen=new Set();
    for(const [k,v]of robot.memory){const p=point(k);if(p.f!==f||v.blocked||seen.has(k)||doors.has(k))continue;const cells=[],q=[k];seen.add(k);
     while(q.length){const c=q.pop();cells.push(c);const cp=point(c);for(const [dx,dz]of [[1,0],[-1,0],[0,1],[0,-1]]){const n=key(cp.x+dx,cp.z+dz,f);if(seen.has(n)||doors.has(n))continue;const m=robot.memory.get(n);if(!m||m.blocked)continue;seen.add(n);q.push(n);}}
     if(cells.length)regions.push({f,cells});}}
@@ -89,17 +89,19 @@ export class SemanticBelief{
    next.set(r.id,{id:r.id,f:r.f,cells:r.cells,bbox:bb,area:r.cells.length,doors:[],objects:[],scores:{},label:'unknown',name:'Unclassified space',confidence:0,previous:this.regions.get(r.id)});}
   this.regions=next;
   // Attach observed objects and doors to their nearest region cell on the same floor.
-  for(const b of this.objects.values()){if(!b.pose||b.present===false)continue;const f=this.floorOf(b);b.region=this.nearestRegion(b.pose.x,b.pose.z,f,b.type==='door'?1.2:1.7)??(b.type==='door'?null:this.nearestRegion(b.pose.x,b.pose.z,f,2.9));if(b.type==='door'){const k=key(b.pose.x,b.pose.z,f);b.connects=[];for(const [dx,dz]of [[0,1],[0,-1],[1,0],[-1,0]]){const id=assign.get(key(b.pose.x+dx,b.pose.z+dz,f));if(id&&!b.connects.includes(id))b.connects.push(id);}for(const id of b.connects)this.regions.get(id)?.doors.push(b.id);void k;}
+  for(const b of this.objects.values()){if(!b.pose||b.present===false)continue;const f=this.floorOf(b);const sees=b.type==='door'?null:c=>!wallBetween(robot.map,f,b,c);b.region=this.nearestRegion(b.pose.x,b.pose.z,f,b.type==='door'?1.2:1.7,sees)??(b.type==='door'?null:this.nearestRegion(b.pose.x,b.pose.z,f,2.9,sees));if(b.type==='door'){const k=key(b.pose.x,b.pose.z,f);b.connects=[];for(const [dx,dz]of [[0,1],[0,-1],[1,0],[-1,0]]){const id=assign.get(key(b.pose.x+dx,b.pose.z+dz,f));if(id&&!b.connects.includes(id))b.connects.push(id);}for(const id of b.connects)this.regions.get(id)?.doors.push(b.id);void k;}
    else if(b.region)this.regions.get(b.region)?.objects.push(b.id);}
   for(const r of this.regions.values())this.classify(r);
   // Small fragments next to a larger region with the same evidence are folded into it.
   for(const r of [...this.regions.values()].sort((a,b)=>a.area-b.area)){if(r.area>=8)continue;const host=[...this.regions.values()].filter(h=>h!==r&&h.f===r.f&&h.area>r.area&&gap(h.bbox,r.bbox)<=1.2&&(h.label===r.label||r.label==='unknown')&&!r.doors.some(d=>h.doors.includes(d))).sort((a,b)=>b.area-a.area)[0];
    if(!host)continue;host.cells.push(...r.cells);host.objects.push(...r.objects);host.area=host.cells.length;host.bbox=union(host.bbox,r.bbox);for(const c of r.cells)this.regionOf.set(c,host.id);for(const id of r.objects)this.objects.get(id).region=host.id;this.regions.delete(r.id);this.classify(host);}
  }
- nearestRegion(x,z,f,reach){let best=null,bd=reach;const R=Math.ceil(reach);for(let dx=-R;dx<=R;dx++)for(let dz=-R;dz<=R;dz++){const k=key(x+dx,z+dz,f),id=this.regionOf.get(k);if(!id)continue;const p=point(k),d=Math.hypot(p.x-x,p.z-z);if(d<bd){bd=d;best=id;}}return best;}
+ nearestRegion(x,z,f,reach,ok=null){let best=null,bd=reach;const R=Math.ceil(reach);for(let dx=-R;dx<=R;dx++)for(let dz=-R;dz<=R;dz++){const k=key(x+dx,z+dz,f),id=this.regionOf.get(k);if(!id)continue;const p=point(k),d=Math.hypot(p.x-x,p.z-z);if(d<bd&&(!ok||ok(p))){bd=d;best=id;}}return best;}
  classify(r){const s={};for(const id of r.objects){const b=this.objects.get(id);for(const [t,w]of Object.entries(EVIDENCE[b.type]??{}))s[t]=(s[t]??0)+w*Math.min(1,b.conf+.2);}
-  const w=r.bbox.x1-r.bbox.x0,d=r.bbox.z1-r.bbox.z0,long=Math.max(w,d),short=Math.min(w,d);if(long/short>=3&&short<=4.2)s.corridor=(s.corridor??0)+3+Math.min(3,r.doors.length*.6);
-  r.scores=s;const ranked=Object.entries(s).sort((a,b)=>b[1]-a[1]);if(!ranked.length)return;const total=ranked.reduce((a,[,v])=>a+v,0);
+  const w=r.bbox.x1-r.bbox.x0,d=r.bbox.z1-r.bbox.z0,long=Math.max(w,d),short=Math.min(w,d);const roomEvidence=Object.entries(s).filter(([k])=>k!=='corridor').reduce((a,[,v])=>a+v,0),narrow=narrowShare(r)>=.7,network=narrow&&r.area>=60;
+  // Corridors: long and thin, or a large network of narrow passages (a racetrack plan).
+  if(long/short>=3&&short<=4.2||narrow&&(r.area>=40||r.doors.length>=3)&&(roomEvidence<4||network))s.corridor=(s.corridor??0)+3+Math.min(3,r.doors.length*.6)+(network?Math.min(12,r.area*.03):0);
+  r.scores=s;const ranked=Object.entries(s).sort((a,b)=>b[1]-a[1]);if(!ranked.length||ranked[0][1]<1.2)return;/* too little evidence: stay unclassified */const total=ranked.reduce((a,[,v])=>a+v,0);
   r.label=ranked[0][0];r.confidence=+(ranked[0][1]/(total+1)).toFixed(2);r.name=ROOM_LABELS[r.label];
   if(r.label==='meeting'){const seats=r.objects.filter(id=>this.objects.get(id).type==='chair').length;r.name=seats>=6?'Boardroom':'Meeting room';}}
  // Functional zones grow around observed anchor furniture (sofa -> seating area, range -> cooking zone...).
@@ -112,8 +114,8 @@ export class SemanticBelief{
   return zones;}
  // Build the full belief scene graph (throttled by the caller).
  graph(robot,time){this.segment(robot);const zones=this.zones(),nodes=[],edges=[],node=(n)=>{nodes.push(n);return n;},rel=(type,from,to,extra)=>edges.push({type,from,to,...extra});
-  node({id:'house',level:'house',label:'House (robot belief)'});
-  for(let f=0;f<2;f++)if([...this.regions.values()].some(r=>r.f===f))node({id:`floor-${f}`,level:'floor',label:f?'Upper floor':'Ground floor',parent:'house'});
+  node({id:'house',level:'house',label:'Building (robot belief)'});
+  for(let f=0;f<FLOORS;f++)if([...this.regions.values()].some(r=>r.f===f))node({id:`floor-${f}`,level:'floor',label:`Level ${f+1}`,parent:'house'});
   for(const r of this.regions.values()){node({id:r.id,level:'room',label:r.name,parent:`floor-${r.f}`,attrs:{label:r.label,confidence:r.confidence,area_m2:r.area,doors:r.doors.length,evidence:Object.fromEntries(Object.entries(r.scores).map(([k,v])=>[k,+v.toFixed(2)]))}});}
   for(const z of zones.values())node({id:z.id,level:'zone',label:z.name,parent:z.region,attrs:{anchor:z.anchor,members:z.members.length}});
   const support=new Map();
@@ -140,9 +142,9 @@ export class SemanticBelief{
   this.relations=edges;this.nodes=nodes;this.zoneMap=zones;this.lastGraph=time;return {nodes,edges};}
  // Multi-resolution summary of what the robot has, Level 1 (global) to Level 4 (task detail).
  levels(map){const regions=[...this.regions.values()],objs=[...this.objects.values()].filter(b=>b.present!==false),parts=objs.filter(b=>b.partsUnlocked);let grasps=0,reach=0;for(const b of parts)for(const p of b.parts??[])for(const c of [p,...(p.children??[])])if(c.grasp){grasps++;if(c._reachable)reach++;}
-  const s=[0,1].map(f=>map.stats(f));
+  const s=Array.from({length:FLOORS},(_,f)=>map.stats(f)),sum=k=>s.reduce((a,x)=>a+x[k],0);
   return {L1:{floors:new Set(regions.map(r=>r.f)).size,rooms:regions.length,recognised:regions.filter(r=>r.label!=='unknown').length,connections:this.relations.filter(e=>e.type==='connected_to'&&e.via).length/2},
-   L2:{freeArea:+(s[0].areaFree+s[1].areaFree).toFixed(1),occupiedCells:s[0].occupied+s[1].occupied,doors:objs.filter(b=>b.type==='door').length,windows:objs.filter(b=>b.type==='window').length},
+   L2:{freeArea:+sum('areaFree').toFixed(1),occupiedCells:sum('occupied'),doors:objs.filter(b=>b.type==='door').length,windows:objs.filter(b=>b.type==='window').length},
    L3:{objects:objs.length,furniture:objs.filter(isFurniture).length,small:objs.filter(b=>TYPES[b.type]?.small).length},
    L4:{detailed:parts.length,parts:parts.reduce((a,b)=>a+(b.parts?.reduce((x,p)=>x+1+(p.children?.length??0),0)??0),0),grasps,reachable:reach}};}
 }
@@ -153,6 +155,13 @@ function partAttrs(b,p,robot){const o={kind:p.kind,joint:p.joint,hinge:p.hinge};
   // Reachable if a known free navigation cell lies within 0.9 m (arm reach) at a usable height.
   let r=false;for(let dx=-1;dx<=1;dx++)for(let dz=-1;dz<=1;dz++){const m=robot.memory.get(key(g.x+dx,g.z+dz,b.f));const c={x:Math.round(g.x+dx),z:Math.round(g.z+dz)};if(m&&!m.blocked&&Math.hypot(c.x-g.x,c.z-g.z)<=.95&&g.y>.05&&g.y<1.7)r=true;}o.reachable=r;p._reachable=r;}return o;}
 function accessCell(robot,b){let best=null,bd=Infinity;for(let x=Math.floor(b.bbox.x0)-1;x<=Math.ceil(b.bbox.x1)+1;x++)for(let z=Math.floor(b.bbox.z0)-1;z<=Math.ceil(b.bbox.z1)+1;z++){const m=robot.memory.get(key(x,z,b.f));if(!m||m.blocked)continue;const nx=Math.max(b.bbox.x0,Math.min(b.bbox.x1,x)),nz=Math.max(b.bbox.z0,Math.min(b.bbox.z1,z)),d=Math.hypot(nx-x,nz-z);if(d<.95&&d<bd){bd=d;best={x,z,f:b.f};}}return best;}
+// True when the robot's own map shows an obstacle run (a wall) between an object's footprint
+// and a navigation cell: objects seen through a doorway must not be attached to the corridor.
+function wallBetween(map,f,b,c){if(!map||!b.bbox)return false;const bb=b.bbox,cx=Math.max(bb.x0,Math.min(bb.x1,c.x)),cz=Math.max(bb.z0,Math.min(bb.z1,c.z)),L=Math.hypot(c.x-cx,c.z-cz),n=Math.ceil(L/.08);let run=0;
+ for(let i=1;i<n;i++){const x=cx+(c.x-cx)*i/n,z=cz+(c.z-cz)*i/n;if(x>bb.x0-.03&&x<bb.x1+.03&&z>bb.z0-.03&&z<bb.z1+.03)continue;if(map.stateAt(x,z,f)===2){if(++run>=2)return true;}else run=0;}return false;}
+// Share of a region's cells whose shorter straight free run (x or z) is at most 4 m: high for
+// corridors and racetracks of corridors, low for rooms even when furniture interrupts them.
+function narrowShare(r){const set=new Set(r.cells);let narrow=0;for(const c of r.cells){const p=point(c),run=(dx,dz)=>{let n=1;for(const s of [-1,1])for(let i=1;i<12;i++){if(!set.has(key(p.x+s*dx*i,p.z+s*dz*i,p.f)))break;n++;}return n;};if(Math.min(run(1,0),run(0,1))<=4)narrow++;}return narrow/Math.max(1,r.cells.length);}
 const overlap=(a,b)=>a.x0<b.x1&&b.x0<a.x1&&a.z0<b.z1&&b.z0<a.z1;
 const union=(a,b)=>({x0:Math.min(a.x0,b.x0),x1:Math.max(a.x1,b.x1),z0:Math.min(a.z0,b.z0),z1:Math.max(a.z1,b.z1)});
 const inside2=(p,b)=>p.x>=b.x0&&p.x<=b.x1&&p.z>=b.z0&&p.z<=b.z1;
@@ -163,8 +172,8 @@ function frontStrip(b){if(!b.pose||b.type==='door')return null;const dir=worldDi
  if(dir[2]>.5)return {x0:bb.x0,x1:bb.x1,z0:bb.z1+.02,z1:bb.z1+depth};if(dir[2]<-.5)return {x0:bb.x0,x1:bb.x1,z0:bb.z0-depth,z1:bb.z0-.02};if(dir[0]>.5)return {x0:bb.x1+.02,x1:bb.x1+depth,z0:bb.z0,z1:bb.z1};return {x0:bb.x0-depth,x1:bb.x0-.02,z0:bb.z0,z1:bb.z1};}
 
 // Ground-truth hierarchy for the observer (and for scoring the robot's belief).
-export function groundTruthGraph(world){const nodes=[{id:'house',level:'house',label:'House (ground truth)'}],edges=[];
- for(let f=0;f<2;f++)nodes.push({id:`floor-${f}`,level:'floor',label:f?'Upper floor':'Ground floor',parent:'house'});
+export function groundTruthGraph(world){const nodes=[{id:'house',level:'house',label:'Building (ground truth)'}],edges=[];
+ for(let f=0;f<FLOORS;f++)nodes.push({id:`floor-${f}`,level:'floor',label:`Level ${f+1}`,parent:'house'});
  for(const r of world.rooms)nodes.push({id:r.id,level:'room',label:r.name,parent:`floor-${r.f}`,attrs:{type:r.type,bounds:r.bounds}});
  for(const z of world.zones)nodes.push({id:z.id,level:'zone',label:z.name,parent:z.room,attrs:{members:z.members.length}});
  for(const o of world.objects){const parent=o.support??o.zone??o.room;nodes.push({id:o.id,level:o.support||TYPES[o.type]?.small&&!['hub','switch','outlet'].includes(o.type)?'object':'furniture',label:o.name,parent,attrs:{category:o.category,type:o.type,position:[+o.x.toFixed(2),+(o.y??0).toFixed(2),+o.z.toFixed(2)],bbox_m:[+o.w.toFixed(2),+o.h.toFixed(2),+o.d.toFixed(2)],mobility:o.mobility,interactive:o.interactive,affordances:o.affordances,state:o.type==='door'?(o.open?'open':'closed'):o.active===false?'removed':undefined}});

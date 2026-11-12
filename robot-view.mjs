@@ -3,15 +3,16 @@
 // belief and recent sightings. Unobserved space is not drawn.
 import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
-import {robotObservation} from './robot-knowledge.mjs?v=20261112b';
-import {RES,NX,NZ} from './mapping.mjs?v=20261112b';
-import {CATEGORY_COLOURS,ROOM_COLOURS} from './materials.mjs?v=20261112b';
+import {robotObservation} from './robot-knowledge.mjs?v=20261112t';
+import {RES,NX,NZ} from './mapping.mjs?v=20261112t';
+import {W,D} from './world.mjs?v=20261112t';
+import {CATEGORY_COLOURS,ROOM_COLOURS} from './materials.mjs?v=20261112t';
 
 export function createRobotView(container,sim){
  const scene=new THREE.Scene();scene.background=new THREE.Color('#14302a');
  const renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.outputColorSpace=THREE.SRGBColorSpace;container.appendChild(renderer.domElement);
- const camera=new THREE.PerspectiveCamera(43,1,.1,150);camera.position.set(21,18,23);
- const controls=new OrbitControls(camera,renderer.domElement);controls.target.set(12,0,9);controls.enableDamping=true;controls.maxPolarAngle=Math.PI*.47;controls.minDistance=5;controls.maxDistance=65;
+ const camera=new THREE.PerspectiveCamera(43,1,.1,260);camera.position.set(W/2+12,24,D/2+20);
+ const controls=new OrbitControls(camera,renderer.domElement);controls.target.set(W/2,0,D/2);controls.enableDamping=true;controls.maxPolarAngle=Math.PI*.47;controls.minDistance=5;controls.maxDistance=110;
  scene.add(new THREE.HemisphereLight('#e7fff1','#37544c',2.2));const light=new THREE.DirectionalLight('#fff5d8',1.8);light.position.set(5,18,9);scene.add(light);
  const unit=new THREE.BoxGeometry(1,1,1),mat=new THREE.MeshStandardMaterial({color:'#ffffff',roughness:.85});
  const freeTiles=new THREE.InstancedMesh(unit,mat,NX*NZ),walls=new THREE.InstancedMesh(unit,mat,NX*NZ);for(const m of [freeTiles,walls]){m.count=0;m.frustumCulled=false;scene.add(m);}
@@ -34,7 +35,7 @@ export function createRobotView(container,sim){
   markers.count=Math.min(200,state.landmarks.length);state.landmarks.slice(0,200).forEach((p,i)=>put(markers,i,p.ox??p.x,1.2,p.oz??p.z,1,1,1));markers.instanceMatrix.needsUpdate=true;
   sightings.count=Math.min(100,state.occupants.length);state.occupants.slice(0,100).forEach((p,i)=>put(sightings,i,p.x,.6,p.z,1,p.type==='human'?1:.5,1));sightings.instanceMatrix.needsUpdate=true;
   const empty=container.querySelector('#scan-empty');if(empty){empty.style.display=n?'none':'block';empty.textContent=sim.time?'No scans on this floor yet.':'Start the patrol to reveal MOMO\'s first scan.';}
-  const readout=document.getElementById('scan-readout');if(readout)readout.textContent=`${f===0?'Ground':'Upper'} floor · ${(n*RES*RES).toFixed(0)} m² free · ${b} obstacle cells · ${[...a.belief.objects.values()].filter(o=>o.f===f&&o.present!==false).length} objects`;}
+  const readout=document.getElementById('scan-readout');if(readout)readout.textContent=`Level ${f+1} · ${(n*RES*RES).toFixed(0)} m² free · ${b} obstacle cells · ${[...a.belief.objects.values()].filter(o=>o.f===f&&o.present!==false).length} objects`;}
  function rebuildObjects(f){clear(boxes);clear(labels);const belief=sim.robot.belief;
   for(const o of belief.objects.values()){if(o.f!==f||o.present===false||!o.bbox||o.type==='rug')continue;const b=o.bbox,w=b.x1-b.x0,h=Math.max(.02,b.y1-b.y0),d=b.z1-b.z0;const c=CATEGORY_COLOURS[o.category]??'#cccccc';
    const edges=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(w,h,d)),new THREE.LineBasicMaterial({color:c,transparent:true,opacity:.35+.6*o.conf}));edges.position.set((b.x0+b.x1)/2,(b.y0+b.y1)/2,(b.z0+b.z1)/2);boxes.add(edges);
@@ -44,7 +45,7 @@ export function createRobotView(container,sim){
   if(sim.lastSense!==lastScan||lastRobot!==a||floorChanged){rebuild(f);lastScan=sim.lastSense;lastRobot=a;}
   if(sim.graphTime!==lastGraph||floorChanged){rebuildObjects(f);lastGraph=sim.graphTime;}
   const est=a.localizer?.est??a;robot.visible=a.f===f&&!a.stair;robot.position.set(est.x,0,est.z);robot.rotation.y=-(est.heading??a.heading);
-  const target=follow&&a.f===f?new THREE.Vector3(est.x,0,est.z):new THREE.Vector3(12,0,9);if(follow||floorChanged){const delta=target.clone().sub(controls.target);camera.position.add(delta);controls.target.copy(target);}
+  const target=follow&&a.f===f?new THREE.Vector3(est.x,0,est.z):new THREE.Vector3(W/2,0,D/2);if(follow||floorChanged){const delta=target.clone().sub(controls.target);camera.position.add(delta);controls.target.copy(target);}
   controls.update();renderer.render(scene,camera);}
  return {update,renderer,get state(){return state;},setFloor(v){selectedFloor=v;lastScan=-1;lastGraph=-1;},setFollow(v){follow=v;},dispose(){observer.disconnect();controls.dispose();clear(boxes);clear(labels);scene.traverse(o=>{o.geometry?.dispose();if(o.material){for(const m of Array.isArray(o.material)?o.material:[o.material])m.dispose();}});renderer.dispose();renderer.domElement.remove();}};
 }

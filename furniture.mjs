@@ -126,7 +126,7 @@ export function buildObject(o,M){const k=new Kit(),{w,d,h}=o.size;let cast=true;
   case 'trash':k.add(new THREE.IcosahedronGeometry(.06,0),M.paper,-.05,.05,0,.3,.6,.1);k.cyl(.033,.033,.12,.07,.033,.03,M.metal,14,Math.PI/2);k.add(new THREE.IcosahedronGeometry(.045,0),M.litter,.0,.04,.08,1,.2,.4);break;
   case 'surface':k.add(new THREE.CylinderGeometry(.5,.5,.004,28),M.spill,0,.003,0,0,0,0,w,1,d);cast=false;break;
   case 'pet-bed':k.cyl(w/2,w/2,h*.6,0,h*.3,0,M.fabricCharcoal,24);k.cyl(w/2-.08,w/2-.08,h*.5,0,h*.4,0,M.fabric,24);break;
-  case 'stairs':cast=false;break;
+  case 'stairs':case 'elevator':cast=false;break;
   default:k.box(w,h,d,0,h/2,0,M.laminateGrey,.01);
  }
  const g=k.build({cast});g.userData.objectId=o.id;return g;
