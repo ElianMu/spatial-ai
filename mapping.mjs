@@ -12,7 +12,7 @@
 //    (MAP_POSE='truth', i.e. "mapping with known poses"). Setting MAP_POSE='estimate' builds the
 //    map from the estimate instead; without loop closure that drifts by up to ~0.5 m along the
 //    48 m corridors, so it is kept as an experimental switch rather than the default.
-import {W,D,H,FLOORS,NAV_BAND,EYE,key} from './world.mjs?v=20261112t';
+import {W,D,H,FLOORS,NAV_BAND,EYE,key} from './world.mjs?v=20261112u';
 
 export const MAP_POSE={mode:'truth'};
 const PER_FLOOR=fn=>Array.from({length:FLOORS},fn);

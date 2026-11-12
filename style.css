@@ -21,3 +21,24 @@
 .inspector{font-size:10.5px;color:#56685d;border:1px solid #eceee5;border-radius:6px;padding:12px 14px;background:#fcfcf8;max-height:460px;overflow:auto}.inspector h3{font-size:14px;margin:0 0 4px;color:#2d4a3e}.inspector table{width:100%;border-collapse:collapse;margin:8px 0}.inspector td{padding:3px 4px;border-bottom:1px solid #eef0e8;vertical-align:top}.inspector td:first-child{color:#8e998a;width:38%}.inspector .rel{display:block;padding:2px 0}.inspector .rel b{font-weight:600;color:#2c6756}.inspector button{font-size:9px;padding:5px 9px;margin-right:5px}.inspector .muted{color:#9aa294}
 @media(max-width:1100px){.graph-body{grid-template-columns:1fr}.levels{grid-template-columns:1fr 1fr}.metrics{grid-template-columns:repeat(3,1fr);row-gap:16px}.mode-tabs{padding:10px 16px}}
 @media(max-width:760px){.metrics{grid-template-columns:repeat(2,1fr)}.mode-legend{display:none}.segmented.narrow{width:100%}}
+/* ---- Tower additions: designer, real data, frames, performance ---- */
+.designer,.realdata{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:22px;margin-bottom:18px;min-width:0}
+.designer h2,.realdata h2{margin-top:7px;font-size:17px}.designer h3.sub{font-size:13px;margin:20px 0 8px;color:var(--green)}
+.cyoa-controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-size:11px;margin:8px 0 12px}.cyoa-controls label{display:flex;gap:6px;align-items:center;color:#6c766c}
+.cyoa-controls input,.cyoa-controls select{font:inherit;font-size:11px;padding:5px 7px;border:1px solid var(--line);border-radius:6px;background:#fff}.cyoa-controls input[type=number]{width:58px}
+.cyoa,.evo{display:grid;grid-template-columns:1fr 1fr;gap:14px}.option{border:1px solid var(--line);border-radius:9px;padding:12px;background:#fff;min-width:0}
+.option-head{display:flex;gap:10px;align-items:baseline;font-size:12px;margin-bottom:8px}.option-head .changes{font-size:10px;line-height:1.4}
+.option canvas,.evo canvas{width:100%;height:auto;border-radius:6px;border:1px solid #ecece4;display:block}
+.option .bar{height:3px;background:#eef0e8;border-radius:2px;margin:6px 0}.option .bar i{display:block;height:100%;width:0;background:var(--green);border-radius:2px;transition:width .2s}
+.option .perf{font-size:11px;line-height:1.55;margin:6px 0}.option .genome{font-size:10px;line-height:1.45;margin:0 0 8px}.muted{color:#8a9086}
+.option-actions{display:flex;gap:8px;flex-wrap:wrap}.lineage{font-size:11px;line-height:1.7;color:#55625b;padding-left:18px;max-height:220px;overflow:auto}
+.zone-legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:10px;margin:10px 0}.zone-legend em{font-style:normal;color:#9aa096;font-size:9px}
+.real-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:16px;align-items:start}.real-grid canvas{width:100%;height:auto;border:1px solid #ecece4;border-radius:6px}
+.rw-readout{font-size:11px;line-height:1.75}.rw-readout b{color:var(--green)}.rw-readout table{width:100%;border-collapse:collapse;margin-top:6px}.rw-readout td{padding:2px 4px;border-bottom:1px solid #f0f0ea}
+h3.mini{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:#a9c9bc;margin:16px 0 6px;font-weight:600}
+table.frames{width:100%;border-collapse:collapse;font-size:10px;color:#e7f2ec}table.frames td{padding:3px 4px;border-bottom:1px solid rgba(255,255,255,.08);vertical-align:top}table.frames td:first-child{color:#a9c9bc;width:34%;white-space:nowrap}
+.perf-panel{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:18px;margin-bottom:14px}.perf-panel h2{font-size:14px;margin:0}
+#perf{font-size:11px;line-height:1.6}#perf .goal{border-top:1px solid #ecece4;padding:8px 0}#perf .goal b{color:var(--green)}#perf .score{font-size:22px;font-weight:700;color:var(--green)}
+.metrics{grid-template-columns:repeat(7,1fr)}
+@media(max-width:1100px){.cyoa,.evo,.real-grid{grid-template-columns:1fr}}
+#evo-status,#evo-best-desc{font-size:11px;line-height:1.5}

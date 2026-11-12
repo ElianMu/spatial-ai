@@ -8,12 +8,13 @@ import {EffectComposer} from 'three/addons/postprocessing/EffectComposer.js';
 import {RenderPass} from 'three/addons/postprocessing/RenderPass.js';
 import {GTAOPass} from 'three/addons/postprocessing/GTAOPass.js';
 import {OutputPass} from 'three/addons/postprocessing/OutputPass.js';
-import {W,D,H,FLOORS,CEILING,LINKS,key,linkById} from './world.mjs?v=20261112t';
-import {CORE,ENTRANCE,stairLocal} from './building.mjs?v=20261112t';
-import {TYPES} from './catalog.mjs?v=20261112t';
-import {RES,NX,NZ} from './mapping.mjs?v=20261112t';
-import {createMaterials,FLOOR_FINISH,CATEGORY_COLOURS,ROOM_COLOURS} from './materials.mjs?v=20261112t';
-import {Kit,buildObject,metricUV} from './furniture.mjs?v=20261112t';
+import {W,D,H,FLOORS,CEILING,LINKS,key,linkById} from './world.mjs?v=20261112u';
+import {CORE,ENTRANCE,stairLocal} from './building.mjs?v=20261112u';
+import {ZONE_KINDS} from './env.mjs?v=20261112u';
+import {TYPES} from './catalog.mjs?v=20261112u';
+import {RES,NX,NZ} from './mapping.mjs?v=20261112u';
+import {createMaterials,FLOOR_FINISH,CATEGORY_COLOURS,ROOM_COLOURS} from './materials.mjs?v=20261112u';
+import {Kit,buildObject,metricUV} from './furniture.mjs?v=20261112u';
 
 const EXPLODE=8.5,CUT=1.3,CX=W/2,CZ=D/2;
 export function createScene(container,sim,onSelect,onPick=()=>{}){
@@ -99,8 +100,17 @@ export function createScene(container,sim,onSelect,onPick=()=>{}){
   floorGroups[f].add(k.build());const cm=caps.build({cast:false});cm.position.y=CUT-.01;floorGroups[f].add(cm);coreCaps.push(cm);}
  const liftCars=new Map();for(const l of lifts){const k=new Kit();k.boxMM(-.72,.72,0,.06,-.72,.72,M.metal);k.boxMM(-.72,.72,2.3,2.36,-.72,.72,M.metal);for(const [a,b]of [[-.72,-.66],[.66,.72]])for(const [c,d]of [[-.72,-.66],[.66,.72]])k.boxMM(a,b,.06,2.3,c,d,M.chrome);
   k.boxMM(-.72,-.7,.06,2.3,-.66,.66,M.glass);k.boxMM(.7,.72,.06,2.3,-.66,.66,M.glass);k.boxMM(-.66,.66,.06,2.3,.7,.72,M.glass);k.boxMM(-.6,.6,.95,1.0,.62,.66,M.chrome);const car=k.build();car.position.set(l.car.x,0,l.car.z);car.userData={link:l.id,y:0,f:l.floors[0]};scene.add(car);liftCars.set(l.id,car);}
+ // Out-of-service stairs / lifts get a red barrier at their landing.
+ for(const l of LINKS)if(!sim.world.linkOpen.has(l.id))for(let f=l.floors[0];f<=l.floors[1];f++){const k=new Kit(),red=new THREE.MeshStandardMaterial({color:'#d9534f',roughness:.5}),{x,z}=l.landing;if(l.kind==='lift'){k.boxMM(x-.62,x+.62,.9,1.05,CORE.z0-.12,CORE.z0-.06,red);k.boxMM(x-.62,x+.62,1.6,1.75,CORE.z0-.12,CORE.z0-.06,red);}else{const ex=l.side==='W'?.15:W-.15;k.boxMM(ex-.06,ex+.06,.85,1.0,z-.55,z+.55,red);k.boxMM(ex-.06,ex+.06,.25,.4,z-.55,z+.55,red);for(const dz of [-.5,.5])k.boxMM(ex-.04,ex+.04,0,1.0,z+dz-.04,z+dz+.04,M.metal);}floorGroups[f].add(k.build());}
  const linkLines=[];for(const l of LINKS)for(let f=l.floors[0];f<l.floors[1];f++){const ln=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(l.landing.x,0,l.landing.z),new THREE.Vector3(l.landing.x,1,l.landing.z)]),new THREE.LineDashedMaterial({color:l.kind==='lift'?'#6f5bd1':'#5a6b62',dashSize:.25,gapSize:.18}));ln.userData={f,l};ln.computeLineDistances();scene.add(ln);linkLines.push(ln);}
 
+ // Hindrance / affordance regions as translucent floor decals with an outline.
+ const areaGroups=floorGroups.map(g=>{const a=new THREE.Group();g.add(a);return a;});let areaVersion=-1;
+ function drawAreas(){for(const g of areaGroups){for(const o of [...g.children]){g.remove(o);o.traverse?.(x=>{x.geometry?.dispose();x.material?.dispose?.();});}}
+  for(const a of sim.world.areas){const k=ZONE_KINDS[a.kind],w=a.x1-a.x0,d=a.z1-a.z0;const m=new THREE.Mesh(new THREE.PlaneGeometry(w,d),new THREE.MeshBasicMaterial({color:k.color,transparent:true,opacity:a.kind==='glare'?.32:.38,depthWrite:false}));m.rotation.x=-Math.PI/2;m.position.set((a.x0+a.x1)/2,.025,(a.z0+a.z1)/2);m.renderOrder=3;
+   const e=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.PlaneGeometry(w,d)),new THREE.LineBasicMaterial({color:k.color}));e.rotation.x=-Math.PI/2;e.position.copy(m.position);e.position.y=.03;areaGroups[a.f].add(m,e);}
+  areaVersion=sim.world.areaVersion;}
+ drawAreas();
  // ---------------------------------------------------------------- furniture & objects ---
  const objectMeshes=new Map(),smallObjects=[];
  function addObject(o){if(o.type==='door'||o.type==='window')return;const g=buildObject(o,M);g.position.set(o.x,o.y??0,o.z);g.rotation.y=o.rot??0;g.userData.objectId=o.id;floorGroups[o.f].add(g);objectMeshes.set(o.id,g);if(TYPES[o.type]?.small)smallObjects.push(g);g.traverse(m=>{if(m.isMesh)m.userData.base=m.material;});}
@@ -203,6 +213,10 @@ export function createScene(container,sim,onSelect,onPick=()=>{}){
   for(const o of sim.world.objects){let g=objectMeshes.get(o.id);if(!g&&o.type!=='door'&&o.type!=='window'){addObject(o);g=objectMeshes.get(o.id);if(mode!=='realistic')applyMaterials();}if(!g)continue;g.visible=o.active!==false;if(o.solid){g.position.x=o.x;g.position.z=o.z;}}
   for(const d of sim.world.doors){const m=doorMeshes.get(d.id),target=d.open?-d.swing*Math.PI/2:0;m.angle+=(target-m.angle)*.15;m.pivot.rotation.y=m.angle;}
   for(const [id,car]of liftCars){const rider=sim.agents.find(a=>a.stair?.link===id);if(rider?.renderPos){const p=rider.renderPos;car.userData.y=p.y;car.userData.f=p.lo;}const y=yOf(car.userData.f)+car.userData.y;car.position.y=y;car.visible=floor==='both'||(y>=yOf(Number(floor))-.5&&y<=yOf(Number(floor))+H-.5);}
+  if(areaVersion!==sim.world.areaVersion)drawAreas();
+  // Real sun: direction from the site's solar position, intensity from elevation and cloud cover.
+  const c=sim.conditions;if(c){const v=c.vector,day=c.daylight*(1-.55*(c.cloud??0)/100);if(v.y>.01){sun.position.set(CX+v.x*90,Math.max(4,v.y*90),CZ+v.z*90);sun.intensity=.4+2.4*day;}else{sun.position.set(CX-20,60,CZ+20);sun.intensity=.12;}hemi.intensity=.3+.5*c.daylight;
+   const bg=c.daylight>.5?'#e9ece6':c.daylight>.05?'#d9d6cf':'#69727a';if(scene.background.getHexString()!==bg.slice(1)){scene.background.set(bg);scene.fog.color.set(bg);}}
   for(const r of sim.world.rooms){const l=lights.get(r.id);if(l)l.intensity+=((r.light?(r.kind==='corridor'?9:14):0)-l.intensity)*.1;}
   if(now-lastCull>400){lastCull=now;const cp=mode==='robot'?pov.position:camera.position;for(const g of smallObjects){const wp=g.getWorldPosition(new THREE.Vector3());g.visible=g.visible&&wp.distanceTo(cp)<(mode==='robot'?14:30);}}
   if(Math.abs(sim.time-lastOverlay)>.35||lastOverlay<0){drawNavigation();drawSensors();drawSemanticLabels();drawGraph();lastOverlay=sim.time;if(mode==='semantic')applyMaterials();}

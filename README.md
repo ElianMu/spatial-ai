@@ -20,6 +20,15 @@ The floor plan, the room programme for each floor and the furnishing rules live 
 
 A stair carries one person per flight and goes one floor at a time; a lift carries one rider but can skip floors, so planners trade walking for waiting. The feature stair stops at L3, so a trip to L5 that only knows that stair has no route.
 
+## What the app does (course requirements)
+
+* **Primary function: environment designer (section 06).** An environment is a *genome*: which stairs and lifts are in service, shut doors, hindrance and affordance regions, the dock and recycling positions, staff count and a seed. *Choose your own adventure* runs two variants side by side; you pick one and two new variants are bred from it. *Automated evolution* mutates the best environment, scores every candidate by its agents' aggregate performance and repeats for N epochs. Simulations run headlessly in Web Workers.
+* **Secondary function: real place + time (section 07).** The building sits on the Avery Hall site in New York (rotated 28.9° like the Manhattan grid). The real sun position and hourly Open-Meteo weather (forecast, or ERA5 for historic dates) drive the 3D sun and shadows, room heat and glare hindrances. The same data is available through an MCP server (`mcp/site-data-server.mjs`).
+* **Locations and distances.** Every agent is located in six frames (world, grid, topological, dock-relative, robot belief, geographic). Distances to its goal are given in five metrics (Euclidean, grid, geodesic, travel time, topological hops).
+* **Performance.** Each goal type has its own measure: robot tasks per minute, latency, coverage and energy; staff trip efficiency (ideal ÷ actual time); dog trip efficiency. These combine into an environment score from 0 to 100.
+
+See [SEMANTIC_MODEL.md](SEMANTIC_MODEL.md) for the semantic model and [REQUIREMENTS.md](REQUIREMENTS.md) for the requirement-by-requirement checklist.
+
 ## Run locally
 
 Use Node.js. There are no npm dependencies and no build step.
@@ -28,7 +37,7 @@ Use Node.js. There are no npm dependencies and no build step.
 node server.cjs
 ```
 
-Open http://127.0.0.1:8088/ . Serve the page over HTTP rather than opening `index.html` directly. Three.js 0.170.0 loads from jsDelivr, so internet access is required. All textures are generated procedurally at start-up, so there are no asset downloads.
+Open http://127.0.0.1:8088/ . Serve the page over HTTP rather than opening `index.html` directly. Three.js 0.170.0 loads from jsDelivr and weather from Open-Meteo, so internet access is required (without it the sun still follows the true solar geometry with a clear-sky model). The environment designer uses module Web Workers (any current Chrome, Edge, Safari or Firefox). All textures are generated procedurally at start-up, so there are no asset downloads.
 
 ## Explore
 
@@ -51,6 +60,7 @@ Open http://127.0.0.1:8088/ . Serve the page over HTTP rather than opening `inde
 node simulation-test.mjs      # 10 original behaviour checks
 node interaction-test.mjs     # 3 original pedestrian / scan-view checks
 node acceptance-test.mjs      # workplace acceptance scenarios A–F and H
+node designer-test.mjs        # genome, regions, frames/distances, real sun, evaluation
 ```
 
 ## What is real and what is approximated
@@ -74,7 +84,11 @@ node acceptance-test.mjs      # workplace acceptance scenarios A–F and H
 | `world.mjs` | Walls, doors, spatial hash, collision, ray casting, multi-floor routing, stair / lift traversal |
 | `mapping.mjs` | LiDAR / depth simulation, occupancy grid, frontiers, localisation |
 | `semantics.mjs` | Detection model, belief, room segmentation and recognition, zones, relations, scene graph, levels |
-| `simulation.mjs` | Agents, tasks, exploration, navigation, yielding, experiments |
+| `simulation.mjs` | Agents, tasks, exploration, navigation, yielding, regions, seeded events, performance |
+| `env.mjs` | Environment genome, region kinds, mutation |
+| `metrics.mjs` | Frames of reference and distance metrics |
+| `realworld.mjs` | Site, sun position, Open-Meteo weather, solar heat and glare |
+| `evaluate.mjs`, `evolve-worker.mjs`, `designer.mjs` | Headless evaluation, Web Worker, environment designer UI |
 | `scene.mjs`, `furniture.mjs`, `materials.mjs` | Observer rendering and view modes |
 | `robot-knowledge.mjs`, `robot-view.mjs` | Memory-only reconstruction |
 | `app.mjs`, `index.html`, `style.css` | Interface |

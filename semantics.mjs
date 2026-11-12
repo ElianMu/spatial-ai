@@ -8,8 +8,8 @@
 // true category and a persistent instance id (perfect data association); it does not run a
 // learned vision model. Room labels, zones, support relations, adjacency and access are inferred
 // from what has been observed, never read from the floor plan.
-import {TYPES,toWorld,localBoxToWorld,worldDir} from './catalog.mjs?v=20261112t';
-import {key,point,W,D,EYE,FLOORS,floorLabel} from './world.mjs?v=20261112t';
+import {TYPES,toWorld,localBoxToWorld,worldDir} from './catalog.mjs?v=20261112u';
+import {key,point,W,D,EYE,FLOORS,floorLabel} from './world.mjs?v=20261112u';
 
 export const ROOM_LABELS={workspace:'Open workspace',meeting:'Meeting room',pantry:'Pantry',print:'Print room',reception:'Reception',lounge:'Lounge',office:'Private office',server:'Server room',restroom:'Restroom',wellness:'Wellness room',corridor:'Corridor'};
 // Evidence that an observed object type contributes to each room type (rule-based recognition).
@@ -34,8 +34,8 @@ function samplePoints(o){const b=o.aabb,y0=o.y??0,y1=y0+o.h;if(['hub','switch','
  const top=Math.min(y1,2.6)-.01;return [{x:cx,y:(y0+top)/2,z:cz},{x:cx,y:top,z:cz},{x:cx-sx,y:top,z:cz-sz},{x:cx+sx,y:top,z:cz-sz},{x:cx-sx,y:top,z:cz+sz},{x:cx+sx,y:top,z:cz+sz}];}
 
 // Run the simulated detector from the robot's true camera pose.
-export function detectObjects(world,robot,fov){const eye={x:robot.x,z:robot.z,f:robot.f,eye:EYE.robot},out=[],expected=[];
- for(const o of world.objects){if(o.f!==robot.f||!o.aabb)continue;const range=detectionRange(o);
+export function detectObjects(world,robot,fov,rangeScale=1){const eye={x:robot.x,z:robot.z,f:robot.f,eye:EYE.robot},out=[],expected=[];
+ for(const o of world.objects){if(o.f!==robot.f||!o.aabb)continue;const range=detectionRange(o)*rangeScale;
   const nx=Math.max(o.aabb.x0,Math.min(o.aabb.x1,robot.x)),nz=Math.max(o.aabb.z0,Math.min(o.aabb.z1,robot.z)),dist=Math.hypot(nx-robot.x,nz-robot.z);if(dist>range)continue;
   let seen=0,inView=0;const pts=samplePoints(o);
   for(const p of pts){const ang=Math.atan2(p.z-robot.z,p.x-robot.x),d=Math.atan2(Math.sin(ang-robot.heading),Math.cos(ang-robot.heading));if(Math.abs(d)>fov/2&&dist>.5)continue;inView++;if(world.visible(eye,{...p,f:o.f,owner:o.id}))seen++;}

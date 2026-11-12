@@ -1,4 +1,4 @@
-import {key,point} from './world.mjs?v=20261112t';
+import {key,point} from './world.mjs?v=20261112u';
 
 // This projection deliberately accepts the robot's memory, never the physical world.
 export function robotObservation(robot,time,floor=robot.f){

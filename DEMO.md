@@ -10,3 +10,11 @@
 8. **Honesty slide / 真实与近似**: open "What is real vs. approximated" in the sidebar. 展示侧栏中的"真实与近似"说明。
 
 Use **Screenshot** or **Record 12 s** for slides. The scan reconstruction (03) and the collider overlay are good evidence images. 用截图或 12 秒录屏制作幻灯片。
+
+## Course deliverable videos / 作业视频
+
+**Instruction manual (≈2 min) / 使用说明：** open the URL → the whole-building view → press *Start patrol* → switch L1–L5 and the six view modes → in the agent card, point out the six location frames and five distances → *Goals & performance* → section 07: *Now*, then pick a past date and *Load weather* → section 06: *Generate two options*, *Choose A*, then *Evolve* with 8 epochs.
+
+**Demo (≈2 min) / 演示：** run *Evolve* (8 epochs × 4 variants); narrate the chart (best and mean per epoch) and the log of kept changes; press *Load best in 3D* and compare MOMO's behaviour with the baseline (e.g. a fast lane or a closed lift changes its routes); then do two manual rounds and show the lineage.
+
+**Interesting environments / 有趣的环境：** screenshot the best plans and note why, for example: *lift closed → stair queues and lower staff trip efficiency*, *a charging strip on the robot's main route → better energy per task*, *works area on a corridor → routes shift through the cross passages*, *dock moved closer to the recycling station → higher throughput*.

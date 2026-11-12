@@ -1,20 +1,27 @@
-import {W,D,H,FLOORS,EYE,key,point,distance,createWorld,route,linkPosition,linkLength,linkById,LINK_AT,linkTargets} from './world.mjs?v=20261112t';
-import {OccupancyMap,Localizer,robotPerceive,RES} from './mapping.mjs?v=20261112t';
-import {SemanticBelief,detectObjects,groundTruthGraph,ROOM_LABELS} from './semantics.mjs?v=20261112t';
+import {W,D,H,FLOORS,EYE,key,point,distance,createWorld,route,linkPosition,linkLength,linkById,LINK_AT,linkTargets} from './world.mjs?v=20261112u';
+import {OccupancyMap,Localizer,robotPerceive,RES} from './mapping.mjs?v=20261112u';
+import {SemanticBelief,detectObjects,groundTruthGraph,ROOM_LABELS} from './semantics.mjs?v=20261112u';
+import {defaultGenome,prng,zoneSites,ZONE_KINDS} from './env.mjs?v=20261112u';
+import {conditionsAt,solarEffects} from './realworld.mjs?v=20261112u';
+import {geodesic} from './metrics.mjs?v=20261112u';
+const NAMES=['Alex','Priya','Sam','Jordan','Lee','Maya','Omar','Chen','Rosa','Kai','Noor','Ivan','Zoe','Tariq','Ana','Ben'];
+const STAFF_SPOTS=[[6,10],[38,20],[18,10],[40,10],[10,20],[34,10],[30,20],[8,10],[18,20],[40,20],[14,20],[44,10],[36,10],[4,20],[42,20],[16,10]];
+// Default real-world clock: a weekday morning at the site (overridable with opts.clockStart).
+export const DEFAULT_CLOCK=Date.UTC(2026,10,12,14,0);
 export const taskNames={trash:'Collect litter',surface:'Clean floor spills',tidy:'Review furniture',temperature:'Check temperature',lights:'Switch off empty rooms',patrol:'Patrol the building',dock:'Return to dock',dispose:'Empty waste bin'};
 const colors=['#39c9b0','#f0aa71','#b7a5e1','#e9cb70','#b9b3aa','#efb48f','#9db79c','#d98fa0','#8fb3d9','#c9a46b','#7fc2a4','#e0a3d0'];
 const LANDMARK_TYPES=new Set(['hub','dock','bin','stairs','elevator']);
 export class Simulation{
- constructor(){this.reset();}
- reset(){this.world=createWorld();this._count=null;this.time=0;this.running=false;this.speed=1;this.auto=true;this.tasks=[];this.done=[];this.events=[];this.counter=0;this.coverage=0;this.avoids=0;this.scans=0;this.collisions=0;this.carry=0;this.battery=100;this.lastSense=0;
+ constructor(genome=defaultGenome(),opts={}){this.genome=genome;this.opts=opts;this.weather=opts.weather??null;this.clockStart=new Date(opts.clockStart??DEFAULT_CLOCK);this.timeScale=opts.timeScale??20;this.reset();}
+ reset(){this.world=createWorld(this.genome);this.rng=prng(this.genome.seed);this.trips=[];this.failedTrips=0;this.energyUsed=0;this.nextLitter=40+this.rng.u()*40;this.nextSpill=90+this.rng.u()*90;this.spills=[];this.envClock=-1;this.lastEnvUpdate=-1e9;this._count=null;this.time=0;this.running=false;this.speed=1;this.auto=true;this.tasks=[];this.done=[];this.events=[];this.counter=0;this.coverage=0;this.avoids=0;this.scans=0;this.collisions=0;this.carry=0;this.battery=100;this.lastSense=0;
   this.agents=[];
   const dock=this.world.object('dock').access;this.home={x:dock.x,z:dock.z,f:0};
   // MOMO starts on its dock; ten staff start in corridors on all five floors; the office dog on L1.
-  const specs=[['MOMO','robot',dock.x,dock.z,0],['Alex','human',6,10,0],['Priya','human',38,20,0],['Sam','human',18,10,1],['Jordan','human',40,10,1],['Lee','human',10,20,2],['Maya','human',34,10,2],['Omar','human',30,20,3],['Chen','human',8,10,3],['Rosa','human',18,20,4],['Kai','human',40,20,4],['Biscuit','dog',31,10,0]];
+  const specs=[['MOMO','robot',dock.x,dock.z,0]];for(let i=0;i<(this.genome.staff??10);i++){const f=Math.floor(i/2)%FLOORS;let [x,z]=STAFF_SPOTS[i%STAFF_SPOTS.length];for(let k=0;k<20&&(this.world.navBlocked(x,z,f)||LINK_AT.has(key(x,z,f))||specs.some(p=>p[4]===f&&Math.hypot(p[2]-x,p[3]-z)<2.5));k++)x=x+2>W-3?3:x+2;specs.push([NAMES[i%NAMES.length],'human',x,z,f]);}specs.push(['Biscuit','dog',31,10,0]);
   specs.forEach(([name,type,x,z,f],i)=>this.agents.push({id:`agent-${i}`,name,type,x,z,f,heading:0,color:colors[i%colors.length],range:type==='robot'?6.5:type==='human'?5:4,fov:(type==='robot'?105:type==='human'?115:130)*Math.PI/180,memory:new Map(),landmarks:new Map(),seen:new Map(),objectMemory:new Map(),path:[],trail:[],distance:0,status:'Ready to start',goal:null,dwell:0,scan:0,nextThink:0,stair:null,reuse:0,yields:0}));
   this.robot=this.agents[0];Object.assign(this.robot,{map:new OccupancyMap(),localizer:new Localizer({x:dock.x,z:dock.z,heading:0,f:0}),belief:new SemanticBelief(),bumps:new Map(),lastScan:null,doorState:new Map(),roomLabels:new Map()});this.graph={nodes:[],edges:[]};this.graphTime=-1;this.perf={senseMs:0,graphMs:0,senses:0};
   for(const a of this.agents)a.eye=EYE[a.type];
-  this.rememberLandmark(this.robot,this.world.objects.find(o=>o.id==='dock'));this.log('System','Press Start: perceive → map → discover tasks → act');
+  this.rememberLandmark(this.robot,this.world.objects.find(o=>o.id==='dock'));this.updateEnvironment(true);this.log('System','Press Start: perceive → map → discover tasks → act');
  }
  log(who,msg){this.events.unshift({time:this.time,who,msg});this.events=this.events.slice(0,70);}
  rememberLandmark(a,o){if(!a.landmarks.has(o.id)){const p=this.world.servicePoint(o),h=this.home;a.landmarks.set(o.id,{id:o.id,name:o.name,type:o.type,link:o.link,x:p.x,z:p.z,f:o.f,ox:o.x,oz:o.z,relative:[p.x-h.x,p.z-h.z,o.f*H],visits:1});if(a===this.robot)this.log(a.name,`Landmark saved: ${o.name} (relative to dock)`);}}
@@ -23,7 +30,7 @@ export class Simulation{
   if(a===this.robot&&!a.stair){this.robotSense(a);return;}
   // People and pets keep the original idealised perception: a visible cell reveals its true state.
   for(let x=Math.max(0,Math.floor(a.x-a.range));x<=Math.min(W,Math.ceil(a.x+a.range));x++)for(let z=Math.max(0,Math.floor(a.z-a.range));z<=Math.min(D,Math.ceil(a.z+a.range));z++){
-   const p={x,z,f:a.f};if(this.canSee(a,p,this.world.surfaceHeight(x,z,a.f)+.01))a.memory.set(key(x,z,a.f),{blocked:this.world.navBlocked(x,z,a.f),occupied:this.world.blocked(x,z,a.f),time:this.time});
+   const p={x,z,f:a.f};if(this.canSee(a,p,this.world.surfaceHeight(x,z,a.f)+.01))a.memory.set(key(x,z,a.f),{blocked:this.world.navBlocked(x,z,a.f),occupied:this.world.blocked(x,z,a.f),time:this.time,zone:this.world.areaAt(x,z,a.f)?.kind});
   }
   for(const b of this.agents)if(b!==a&&this.canSee(a,b))a.seen.set(b.id,{x:b.x,z:b.z,f:b.f,time:this.time,name:b.name,type:b.type});
   for(const o of this.world.objects)if(o.active!==false&&o.f===a.f&&(LANDMARK_TYPES.has(o.type)||a.type==='human'&&o.id.startsWith('furniture-'))&&this.canSee(a,{x:o.x,z:o.z,f:o.f,owner:o.id},(o.y??0)+Math.min(o.h,1)/2)){a.objectMemory.set(o.id,{...o,time:this.time});this.rememberLandmark(a,o);}
@@ -35,7 +42,9 @@ export class Simulation{
   const est=a.lastScan.pose,dth=est.heading-a.heading,c=Math.cos(dth),s=Math.sin(dth);
   const delta=(x,z)=>{const rx=x-a.x,rz=z-a.z,px=est.x+rx*c-rz*s,pz=est.z+rx*s+rz*c;return {x:px,z:pz,dx:px-x,dz:pz-z};};
   a.belief.recordCovisibility(a,a.lastScan.depth.floorPts);
-  const det=detectObjects(this.world,a,a.fov);a.belief.integrate(this.world,a,det,this.time,delta);a.lastDetections=det.detections.filter(d=>!d.occluded).map(d=>d.o.id);
+  const ar=this.world.areaAt(a.x,a.z,a.f),det=detectObjects(this.world,a,a.fov,ar?.sensing??1);
+  // Floor markings (wet-floor signs, lanes, directories) inside the camera's reach are remembered.
+  for(const [k,m]of a.memory)if(m.time===this.time){const p=point(k);if(p.f===a.f&&Math.hypot(p.x-a.x,p.z-a.z)<=6.5){m.zone=this.world.areaAt(p.x,p.z,p.f)?.kind;}}a.belief.integrate(this.world,a,det,this.time,delta);a.lastDetections=det.detections.filter(d=>!d.occluded).map(d=>d.o.id);
   for(const b of this.agents)if(b!==a&&this.canSee(a,b))a.seen.set(b.id,{x:b.x,z:b.z,f:b.f,time:this.time,name:b.name,type:b.type});
   for(const d of det.detections){if(d.occluded)continue;const o=d.o,old=a.objectMemory.get(o.id);a.objectMemory.set(o.id,{...o,time:this.time});
    if(LANDMARK_TYPES.has(o.type))this.rememberLandmark(a,o);
@@ -47,7 +56,7 @@ export class Simulation{
   this.scans++;this.perf.senseMs+=(globalThis.performance?.now?.()??0)-t0;this.perf.senses++;
   if(this.time-this.graphTime>=Math.max(1,this.perf.graphMs/20))this.refreshGraph();
  }
- refreshGraph(){const a=this.robot,t0=globalThis.performance?.now?.()??0;this.graph=a.belief.graph(a,this.time);this.graphTime=this.time;
+ refreshGraph(){if(this.opts.lite)return;const a=this.robot,t0=globalThis.performance?.now?.()??0;this.graph=a.belief.graph(a,this.time);this.graphTime=this.time;
   for(const r of a.belief.regions.values()){const prev=a.roomLabels.get(r.id);if(r.label!=='unknown'&&prev!==r.label&&r.confidence>=.35){a.roomLabels.set(r.id,r.label);this.log(a.name,`Recognised ${r.name} (${Math.round(r.confidence*100)}% from ${r.objects.length} observed objects)`);}}
   for(const e of a.belief.log.splice(0))if(!e.door)this.log('Belief',e.msg);
   this.perf.graphMs=(globalThis.performance?.now?.()??0)-t0;}
@@ -59,7 +68,7 @@ export class Simulation{
   if(this.tasks.some(t=>t.type===type&&t.target===target))return;
   const t={id:++this.counter,type,target,manual,state:'Queued',created:this.time,progress:0};if(manual)this.tasks.splice(this.tasks[0]?.state==='In progress'?1:0,0,t);else this.tasks.push(t);this.log(manual?'Command':'Discovered',`${taskNames[type]} · ${this.world.objects.find(o=>o.id===target)?.name??target}`);
  }
- setGoal(a,p,label){a.goal={...p,label};a.path=[];a.nextThink=0;}
+ setGoal(a,p,label){a.goal={...p,label};a.path=[];a.nextThink=0;if(a!==this.robot&&/^(Heading to|Revisiting|Looking for)/.test(label))a.trip={t0:this.time,from:{x:a.x,z:a.z,f:a.f},to:{x:p.x,z:p.z,f:p.f},label};else a.trip=null;}
  // Vertical links an agent has seen (a stair landing or lift lobby is a remembered landmark).
  knownLinks(a){const s=new Set();for(const l of a.landmarks.values())if(l.link)s.add(l.link);return s;}
  // Floors the agent believes it can reach through the links it knows (transitively).
@@ -71,14 +80,14 @@ export class Simulation{
   // (it may have entered a tight aisle before seeing the chairs that now flank it).
   const driven=new Set();if(robot)for(let i=Math.max(0,a.trail.length-400);i<a.trail.length;i++){const p=a.trail[i];if(p.f===a.f)driven.add(key(p.x,p.z,p.f));}
   const sk=key(a.x,a.z,a.f),edge=robot?(c,n)=>{if(driven.has(c)&&driven.has(n))return false;const p=c===sk?{x:a.x,z:a.z,f:a.f}:point(c),q=point(n);return p.f===q.f&&a.map.edgeBlocked(p,q,p.f,c===sk?.16:.22,c===sk);}:(c,n)=>c===sk?!this.world.segmentClear({x:a.x,z:a.z,f:a.f},point(n),.16):a.memory.has(c)&&a.memory.has(n)&&!this.world.edgeClear(c,n);
-  const path=route(a,target,k=>a.memory.get(k)?.blocked===true&&!driven.has(k)||this.time-(bumps.get(k)??-99)<20||nearby.some(b=>distance(point(k),b)<1.3),knownStairs,edge);a.path=path??[];if(path?.length===0&&distance(a,target)>.01)a.path=[{x:target.x,z:target.z,f:target.f}];a.nextThink=this.time+2;
+  const zc=k=>{const z=a.memory.get(k)?.zone;return z?1/ZONE_KINDS[z].speed:1;};const path=route(a,target,k=>a.memory.get(k)?.blocked===true&&!driven.has(k)||this.time-(bumps.get(k)??-99)<20||nearby.some(b=>distance(point(k),b)<1.3),knownStairs,edge,zc);a.path=path??[];if(path?.length===0&&distance(a,target)>.01)a.path=[{x:target.x,z:target.z,f:target.f}];a.nextThink=this.time+2;
   if(path===null&&robot){a.failCount=(a.failCount??0)+1;
    // Recovery: after repeated planning failures in the same spot, back out along the robot's own
    // recent trajectory (space it has physically occupied) before trying again.
    if(a.failCount>=4&&a.trail.length>8){const back=[];let acc=0,prev={x:a.x,z:a.z};for(let i=a.trail.length-1;i>=0&&acc<4.5;i--){const p=a.trail[i];if(p.f!==a.f)break;const d=Math.hypot(p.x-prev.x,p.z-prev.z);if(d>.35){acc+=d;back.push({x:p.x,z:p.z,f:p.f});prev=p;}}
     if(back.length&&back.every((p,i)=>this.world.segmentClear(i?back[i-1]:a,p,.1))){a.failCount=0;a.path=back;a.yieldRoute=true;a.nextThink=Infinity;a.goal={...back.at(-1),label:'Recovery: backing out'};this.log(a.name,'Recovery: backing out along its own trajectory');return;}}}
   else if(robot)a.failCount=0;
-  if(path===null){a.yieldRoute=false;a.retreatForHuman=false;a.visited??=new Map();const k=key(target.x,target.z,target.f);a.visited.set(k,(a.visited.get(k)??0)+5);if(target.taskId){const t=this.tasks.find(t=>t.id===target.taskId);if(t){t.fails=(t.fails??0)+1;t.retryAt=this.time+Math.min(120,12*2**Math.min(4,t.fails-1));t.state='Waiting for access';}}a.goal=null;a.status='Target blocked; exploring another area';}}
+  if(path===null){a.yieldRoute=false;a.retreatForHuman=false;a.visited??=new Map();const k=key(target.x,target.z,target.f);a.visited.set(k,(a.visited.get(k)??0)+5);if(target.taskId){const t=this.tasks.find(t=>t.id===target.taskId);if(t){t.fails=(t.fails??0)+1;t.retryAt=this.time+Math.min(120,12*2**Math.min(4,t.fails-1));t.state='Waiting for access';}}if(a.trip){this.failedTrips++;a.trip=null;}a.goal=null;a.status='Target blocked; exploring another area';}}
  explore(a){
   const links=this.knownLinks(a),floors=this.reachableFloors(a,links),visitedFloor=f=>[...a.memory.keys()].some(k=>k.endsWith(`,${f}`));
   // An unvisited floor reached by a known stair or lift: the landing there is one large frontier.
@@ -185,7 +194,8 @@ export class Simulation{
   else if(!a.goal)this.chooseResidentGoal(a);
   if(a.scan>0){a.scan-=dt;a.heading+=dt*2;a.status='Turning / scanning surroundings';return;}
   if(!a.goal){a.heading+=dt;a.status='Scanning / on standby';return;}
-  if(distance(a,a.goal)<.12&&!a.yieldRoute){a.visited??=new Map();const k=key(a.x,a.z,a.f);a.visited.set(k,(a.visited.get(k)??0)+1);a.goal=null;a.path=[];a.scan=3.2;if(a!==this.robot)a.dwell=a.type==='human'?3:2;return;}
+  if(distance(a,a.goal)<.12&&!a.yieldRoute){if(a.trip){const t=a.trip,actual=this.time-t.t0,base=a.type==='human'?.7:.85,g=geodesic(this.world,t.from,t.to,base);if(g&&actual>.5)this.trips.push({agent:a.id,type:a.type,actual:+actual.toFixed(1),ideal:g.time,efficiency:Math.min(1,g.time/actual),metres:g.metres,floors:g.floors});a.trip=null;}
+   a.visited??=new Map();const k=key(a.x,a.z,a.f);a.visited.set(k,(a.visited.get(k)??0)+1);a.goal=null;a.path=[];a.scan=3.2;if(a!==this.robot)a.dwell=a.type==='human'?3:2;return;}
   if(!a.path.length||this.time>=a.nextThink)this.plan(a);if(!a.path.length){a.heading+=dt;return;}
   const next=a.path[0];
   if(next.f!==a.f){const L=LINK_AT.get(key(a.x,a.z,a.f));if(!L){a.path=[];a.nextThink=0;return;}if(Math.hypot(a.x-L.landing.x,a.z-L.landing.z)>.05){a.path.unshift({x:L.landing.x,z:L.landing.z,f:a.f});return;}
@@ -195,7 +205,9 @@ export class Simulation{
   const dx=next.x-a.x,dz=next.z-a.z,len=Math.hypot(dx,dz);if(len<.001){a.path.shift();return;}a.heading=Math.atan2(dz,dx);
   // A forward look is still inside the finite view cone. Navigation never reads hidden walls.
   if(!this.world.segmentClear(a,next,.16)){const k=key(next.x,next.z,next.f);a.bumps??=new Map();a.bumps.set(k,this.time);if(a===this.robot){a.yieldRoute=false;a.retreatForHuman=false;this.log(a.name,'Near-field bumper: unseen obstacle ahead, replanning');}a.path=[];a.nextThink=0;a.scan=.8;a.status='Obstacle detected / replanning';return;}
-  const base=a.type==='robot'?.95:a.type==='human'?.7:a.type==='dog'?.85:.65;
+  const area=this.world.areaAt(a.x,a.z,a.f),base=(a.type==='robot'?.95:a.type==='human'?.7:a.type==='dog'?.85:.65)*(area?.speed??1);
+  if(area){if(area.type==='hindrance')a.hinderTime=(a.hinderTime??0)+dt;else a.affordTime=(a.affordTime??0)+dt;
+   if(area.reveal&&a.readSign!==`${a.f}`){a.readSign=`${a.f}`;let n=0;for(const o of this.world.objects)if(o.link&&o.f===a.f&&!a.landmarks.has(o.id)){this.rememberLandmark(a,o);n++;}if(n&&a===this.robot)this.log(a.name,`Read the L${a.f+1} building directory: ${n} stairs / lifts added to memory`);}}
   let speed=base;
   for(const b of this.agents){if(b===a||b.stair||b.f!==a.f)continue;const d=distance(a,b);if(d<2&&a.seen.has(b.id))speed=Math.min(speed,base*.5);}
   const step=Math.min(len,dt*speed),candidate={x:a.x+dx/len*step,z:a.z+dz/len*step,f:a.f};
@@ -209,10 +221,31 @@ export class Simulation{
    return;
   }
   a.wait=0;a.wasYielding=false;a.x=candidate.x;a.z=candidate.z;a.distance+=step;a.status=a.yieldRoute?'Moving around waiting pedestrian':a.goal.label??'Moving';if(len<=step+.001){a.path.shift();if(!a.path.length&&a.yieldRoute){a.yieldRoute=false;a.nextThink=0;}if(!a.path.length&&a.retreatForHuman){a.yieldPause=2;a.retreatForHuman=false;}}
-  if(a===this.robot)this.battery=Math.max(0,this.battery-dt*.009-step*.015);
+  if(a===this.robot){const e=(dt*.009+step*.015)*Math.max(0,area?.energy??1);this.energyUsed+=e;this.battery=Math.max(0,Math.min(100,this.battery-e+(area?.energy<0?dt*.5*-area.energy:0)));}
  }
- update(dt){if(!this.running)return;let remaining=Math.min(dt,.15)*this.speed;while(remaining>1e-6){const s=Math.min(.06,remaining);remaining-=s;this.time+=s;for(const a of this.agents)this.stepAgent(a,s);if(this.time-this.lastSense>.2){this.lastSense=this.time;for(const a of this.agents){this.sense(a);a.trail.push({x:a.x,z:a.z,f:a.f});if(a.trail.length>1800)a.trail.shift();}this.coverage=[...this.robot.memory.values()].filter(v=>!v.blocked).length/this.walkableCount;}}
+ get clock(){return new Date(this.clockStart.getTime()+this.time*1000*this.timeScale);}
+ setClock(date,timeScale=this.timeScale){this.clockStart=new Date(date.getTime()-this.time*1000*timeScale);this.timeScale=timeScale;this.updateEnvironment(true);}
+ setWeather(series){this.weather=series;this.updateEnvironment(true);}
+ // Real sun + weather at the site clock -> room temperatures and glare regions (every 10 site-minutes).
+ updateEnvironment(force=false){const c=this.clock,bucket=Math.floor(c.getTime()/600000);if(!force&&bucket===this.envClock)return;this.envClock=bucket;
+  const cond=conditionsAt(c,this.weather),fx=solarEffects(this.world,cond);this.conditions=cond;for(const r of this.world.rooms)r.temp=fx.temps.get(r.id)??r.temp;
+  for(const a of [...this.world.areas])if(a.kind==='glare')this.world.removeArea(a.id);for(const g of fx.glare)this.world.addArea(g);this.glareCount=fx.glare.length;}
+ // Stochastic (seeded) events: new litter appears, and corridor spills create temporary wet floors.
+ stochastic(){const r=this.rng;
+  if(this.time>=this.nextLitter){this.nextLitter=this.time+25+r.u()*55;const rooms=this.world.rooms.filter(x=>x.kind==='room'),room=r.pick(rooms),cells=this.world.reachableCells(room);if(cells.length){const c=r.pick(cells),o={id:`litter-${++this.counter}`,name:`${room.name} litter`,type:'trash',category:'litter',x:c.x,z:c.z,y:0,rot:0,size:{w:.3,d:.25,h:.12},w:.3,d:.25,h:.12,f:room.f,room:room.id,solid:false,active:true,mobility:'movable',affordances:['pick-up','dispose'],parts:[],interactive:false,access:{x:c.x,z:c.z}};this.world.addObject(o);this.log('Environment',`New litter appeared in ${room.name} (L${room.f+1})`);}}
+  if(this.time>=this.nextSpill){this.nextSpill=this.time+80+r.u()*120;const f=r.int(FLOORS),s=r.pick(zoneSites(f).filter(z=>z.x1-z.x0<=4)),a=this.world.addArea({id:`spill-${++this.counter}`,kind:'wet-floor',...s,f,until:this.time+150,dynamic:true});this.log('Environment',`A spill made the floor wet on L${f+1} (x ${a.x0.toFixed(0)}–${a.x1.toFixed(0)}) for 150 s`);}
+  for(const a of [...this.world.areas])if(a.until&&a.until<=this.time)this.world.removeArea(a.id);}
+ update(dt){if(!this.running)return;let remaining=Math.min(dt,.15)*this.speed;while(remaining>1e-6){const s=Math.min(.06,remaining);remaining-=s;this.time+=s;if(this.opts.events!==false)this.stochastic();this.updateEnvironment();for(const a of this.agents)this.stepAgent(a,s);if(this.time-this.lastSense>.2){this.lastSense=this.time;for(const a of this.agents){this.sense(a);a.trail.push({x:a.x,z:a.z,f:a.f});if(a.trail.length>1800)a.trail.shift();}this.coverage=[...this.robot.memory.values()].filter(v=>!v.blocked).length/this.walkableCount;}}
  }
+ // Measurable performance for each goal type, plus one aggregate environment score (0–100).
+ performance(){const mins=Math.max(1/60,this.time/60),r=this.robot,lat=this.done.filter(t=>t.created!==undefined).map(t=>t.finished-t.created);
+  const robot={goal:'Discover and complete facility tasks',tasksDone:this.done.length,tasksPerMin:+(this.done.length/mins).toFixed(2),meanTaskLatency:lat.length?+(lat.reduce((a,b)=>a+b,0)/lat.length).toFixed(1):null,coverage:+this.coverage.toFixed(3),energyPerTask:+(this.energyUsed/Math.max(1,this.done.length)).toFixed(2),hindranceSec:+(r.hinderTime??0).toFixed(1),affordanceSec:+(r.affordTime??0).toFixed(1),distance:+r.distance.toFixed(1),floorsVisited:new Set(r.trail.map(p=>p.f)).size};
+  const staffTrips=this.trips.filter(t=>t.type==='human'),dogTrips=this.trips.filter(t=>t.type==='dog'),mean=a=>a.length?a.reduce((x,t)=>x+t.efficiency,0)/a.length:0,people=this.agents.filter(a=>a.type==='human');
+  const staff={goal:'Reach a destination quickly (trip time vs. ideal)',trips:staffTrips.length,meanEfficiency:+mean(staffTrips).toFixed(3),failedTrips:this.failedTrips,yieldsPerMin:+(people.reduce((s,a)=>s+a.yields,0)/mins).toFixed(2),hindranceSec:+people.reduce((s,a)=>s+(a.hinderTime??0),0).toFixed(1),floorsTravelled:staffTrips.reduce((s,t)=>s+t.floors,0)};
+  const dog={goal:'Find a resting spot',trips:dogTrips.length,meanEfficiency:+mean(dogTrips).toFixed(3)};
+  const parts={throughput:Math.min(1,robot.tasksPerMin/4),exploration:Math.min(1,this.coverage/(.0006*this.time+.02)),staffFlow:staffTrips.length?robot&&mean(staffTrips)*(1-Math.min(.5,this.failedTrips/(staffTrips.length+this.failedTrips+1))):0,energy:1-Math.min(1,robot.energyPerTask/6),calm:1-Math.min(1,(staff.yieldsPerMin+this.avoids/mins)/15)};
+  const score=100*(.3*parts.throughput+.15*parts.exploration+.35*parts.staffFlow+.1*parts.energy+.1*parts.calm);
+  return {time:+this.time.toFixed(0),robot,staff,dog,parts:Object.fromEntries(Object.entries(parts).map(([k,v])=>[k,+v.toFixed(3)])),score:+score.toFixed(1)};}
  get walkableCount(){if(!this._count){this._count=0;for(let f=0;f<FLOORS;f++)for(let x=1;x<W;x++)for(let z=1;z<D;z++)if(!this.world.navBlocked(x,z,f))this._count++;}return this._count;}
  inject(type){const a=this.robot,w=this.world;
   if(type==='move'){
@@ -229,6 +262,7 @@ export class Simulation{
   if(type==='close-door'){const d=w.doors.filter(d=>!d.exterior&&d.open&&!this.agents.some(b=>b.f===d.f&&Math.hypot(b.x-d.x,b.z-d.z)<1.8)).sort((p,q)=>(a.objectMemory.has(q.id)-a.objectMemory.has(p.id))||distance(a,p)-distance(a,q))[0];if(!d){this.log('Scene','No door can be closed safely right now');return null;}w.setDoor(d.id,false);this.log('Scene',`${d.name} was closed; MOMO must observe it to update its map`);return d;}
   if(type==='open-doors'){for(const d of w.doors)if(!d.exterior&&!d.open)w.setDoor(d.id,true);this.log('Scene','All interior doors opened');return null;}
   if(type==='trash'){const o={id:`spill-${++this.counter}`,name:'New litter',type:'trash',category:'litter',x:Math.max(1,Math.min(W-1,Math.round(a.x))),z:Math.max(1,Math.min(D-1,Math.round(a.z+2))),y:0,rot:0,size:{w:.3,d:.25,h:.12},w:.3,d:.25,h:.12,f:a.f,solid:false,active:true,mobility:'movable',affordances:['pick-up','dispose'],parts:[],interactive:false};if(w.navBlocked(o.x,o.z,o.f))o.z=Math.round(a.z);o.access={x:o.x,z:o.z};o.room=w.roomContaining(o)?.id??w.roomAt(o)?.id;w.addObject(o);this.log('Scene','New litter added; MOMO must see it to discover it');return o;}
+  if(type==='spill'){const site=zoneSites(a.f).filter(z=>z.x1-z.x0<=4).sort((p,q)=>Math.hypot((p.x0+p.x1)/2-a.x,(p.z0+p.z1)/2-a.z)-Math.hypot((q.x0+q.x1)/2-a.x,(q.z0+q.z1)/2-a.z))[1];if(site){w.addArea({id:`spill-${++this.counter}`,kind:'wet-floor',...site,f:a.f,until:this.time+150,dynamic:true});this.log('Scene',`Wet-floor spill on L${a.f+1} near MOMO (a hindrance for 150 s)`);}return null;}
   if(type==='lights'){for(const r of w.rooms)r.light=true;this.log('Scene','All room lights are on; waiting for inspection');}
  }
  addAgents(){const start=this.agents.length;for(let i=0;i<6;i++){const f=i%FLOORS;let p;for(let x=3;x<W-3&&!p;x+=2)for(const z of [10,20])if(!p&&!LINK_AT.has(key(x,z,f))&&!this.world.navBlocked(x,z,f)&&!this.agents.some(a=>a.f===f&&Math.hypot(a.x-x,a.z-z)<2.5))p={x,z,f};if(!p)continue;const n=this.agents.length;this.agents.push({id:`agent-${n}`,name:`Visitor ${n-start+1}`,type:'human',...p,heading:0,color:colors[n%colors.length],range:5,fov:115*Math.PI/180,memory:new Map(),landmarks:new Map(),seen:new Map(),objectMemory:new Map(),path:[],trail:[],distance:0,status:'Exploring a new environment',goal:null,dwell:0,scan:0,nextThink:0,stair:null,reuse:0,yields:0,eye:EYE.human});}this.log('Experiment','Added 6 visitors with empty maps to compare shared knowledge');}

@@ -2,8 +2,9 @@
 // spatial queries. The navigation grid stays at 1 m (cell keys "x,z,floor"); collision,
 // visibility and sensing use continuous 3D axis-aligned boxes. The floor plan, room programme
 // and furnishing rules live in building.mjs.
-import {makeObject,localBoxToWorld,ROT} from './catalog.mjs?v=20261112t';
-import {W,D,FLOORS,H,CEILING,EXT_WALL,INT_WALL,DOOR_CLEAR,LINKS,FLOOR_NAMES,linkServes,flightPath,liftPath,buildProgramme,wallBoxes,DOCK,RECYCLING,ENTRANCE} from './building.mjs?v=20261112t';
+import {makeObject,localBoxToWorld,ROT} from './catalog.mjs?v=20261112u';
+import {W,D,FLOORS,H,CEILING,EXT_WALL,INT_WALL,DOOR_CLEAR,LINKS,FLOOR_NAMES,linkServes,flightPath,liftPath,buildProgramme,wallBoxes,ENTRANCE} from './building.mjs?v=20261112u';
+import {defaultGenome,ZONE_KINDS} from './env.mjs?v=20261112u';
 export {W,D,FLOORS,H,CEILING,EXT_WALL,INT_WALL,DOOR_CLEAR,LINKS,FLOOR_NAMES,linkServes};
 
 export const NAV_BAND=[.03,1.0];            // obstacle heights that intersect the robot body
@@ -22,8 +23,8 @@ export const linkById=id=>LINKS.find(l=>l.id===id);
 export function linkTargets(l,f){if(!linkServes(l,f))return [];if(l.kind==='stair')return [f-1,f+1].filter(g=>linkServes(l,g));const out=[];for(let g=l.floors[0];g<=l.floors[1];g++)if(g!==f)out.push(g);return out;}
 export const linkCost=(l,from,to)=>l.kind==='stair'?14*Math.abs(to-from):8+3*Math.abs(to-from);
 
-export function createWorld(){
- const {rooms:plan,specs,windows:WIN}=buildProgramme();
+export function createWorld(genome=defaultGenome()){
+ const {rooms:plan,specs,windows:WIN}=buildProgramme();const DOCK=genome.dock,RECYCLING=genome.bin,openLinks=LINKS.filter(l=>genome.links?.[l.id]!==false);
  const rooms=plan.map(r=>({...r,light:true,temp:+(20.5+((r.f*7+r.idx*3)%11)*.6).toFixed(1),lastSample:null,door:r.kind==='room'?`door-${r.f}-${r.idx}`:undefined}));
  const roomById=new Map(rooms.map(r=>[r.id,r]));
  const objects=[],zones=[],doors=[],windows=[];
@@ -44,13 +45,19 @@ export function createWorld(){
  objects.push(
   {...makeObject(['dock','dock','Charging dock',DOCK.x,8+INT_WALL/2+.165,ROT.S,.6,.33,.35,{zone:'charging'}],{f:DOCK.f,room:`corridor-${DOCK.f}-n`}),id:'dock',access:{x:DOCK.x,z:9}},
   {...makeObject(['bin','bin','Recycling station',RECYCLING.x,22-INT_WALL/2-.25,ROT.N,.7,.5,.9,{zone:'recycling'}],{f:RECYCLING.f,room:`corridor-${RECYCLING.f}-s`}),id:'bin',access:{x:RECYCLING.x,z:21}});
- for(const l of LINKS)for(let f=l.floors[0];f<=l.floors[1];f++){const corridor=l.landing.z<15?`corridor-${f}-n`:`corridor-${f}-s`,type=l.kind==='lift'?'elevator':'stairs';
+ for(const l of openLinks)for(let f=l.floors[0];f<=l.floors[1];f++){const corridor=l.landing.z<15?`corridor-${f}-n`:`corridor-${f}-s`,type=l.kind==='lift'?'elevator':'stairs';
   objects.push({...makeObject([type,`${l.id}-${f}`,`${l.name} · L${f+1} ${l.kind==='lift'?'lift lobby':'landing'}`,l.landing.x,l.landing.z,0,.9,.9,.01,{solid:false}],{f,room:corridor}),id:`${l.id}-${f}`,link:l.id,access:{x:l.landing.x,z:l.landing.z}});}
  WIN.forEach(([f,side,along,width,sill,head,room],k)=>{const x=side==='N'||side==='S'?along:side==='W'?0:W,z=side==='W'||side==='E'?along:side==='N'?0:D;
   const rot={N:ROT.S,S:ROT.N,W:ROT.E,E:ROT.W}[side];const o={...makeObject(['window',`window-${f}-${k}`,`${roomById.get(room).name} window`,x,z,rot,width,.08,head-sill,{y:sill,solid:false}],{f,room}),id:`window-${f}-${k}`,side,sill,head,width};windows.push(o);objects.push(o);});
  for(const o of objects){if(!o.zone)continue;let z=zones.find(z=>z.id===o.zone);if(!z){const k=o.zone.split(':zone-')[1];z={id:o.zone,name:ZONE_NAMES[k]??k,room:o.room,f:o.f,members:[]};zones.push(z);}z.members.push(o.id);}
 
- const world={rooms,objects,zones,doors,windows,links:LINKS,version:0,walls:new Set()};
+ for(const id of genome.closedDoors??[]){const d=doors.find(d=>d.id===id);if(d)d.open=false;}
+ // Hindrance / affordance regions painted on the floor (from the genome, plus dynamic ones).
+ const areas=(genome.zones??[]).map(z=>({...z,...ZONE_KINDS[z.kind],kind:z.kind}));
+ const world={rooms,objects,zones,doors,windows,links:openLinks,linkOpen:new Set(openLinks.map(l=>l.id)),genome,areas,version:0,areaVersion:0,walls:new Set()};
+ world.areaAt=(x,z,f)=>{let best=null;for(const a of areas)if(a.f===f&&x>=a.x0&&x<=a.x1&&z>=a.z0&&z<=a.z1&&(!best||Math.abs(1-a.speed)>Math.abs(1-best.speed)||a.reveal))best=a;return best;};
+ world.addArea=a=>{const z={...a,...ZONE_KINDS[a.kind],kind:a.kind};areas.push(z);world.areaVersion++;return z;};
+ world.removeArea=id=>{const i=areas.findIndex(a=>a.id===id);if(i>=0){areas.splice(i,1);world.areaVersion++;}};
  const staticWalls=Array.from({length:FLOORS},(_,f)=>wallBoxes(f)).flat().map((b,i)=>({...b,id:`wall-${b.f}-${i}`,owner:null,type:'wall'}));
  world.wallBoxes=staticWalls;
  const byId=new Map(objects.map(o=>[o.id,o]));world.byId=byId;
@@ -69,7 +76,7 @@ export function createWorld(){
   for(const o of objects)if(!o.solid)o.aabb={x0:o.x-o.w/2,x1:o.x+o.w/2,z0:o.z-o.d/2,z1:o.z+o.d/2,y0:o.y??0,y1:(o.y??0)+o.h};
   const buckets=Array.from({length:FLOORS},()=>new Map());
   for(const c of list){c.nav=c.y0<NAV_BAND[1]&&c.y1>NAV_BAND[0];for(let bx=Math.floor(c.x0);bx<=Math.floor(c.x1);bx++)for(let bz=Math.floor(c.z0);bz<=Math.floor(c.z1);bz++){const k=bx*64+bz;const m=buckets[c.f];if(!m.has(k))m.set(k,[]);m.get(k).push(c);}}
-  world.colliders=list;world.buckets=buckets;world.version++;world.edgeCache=new Map();world._sig=signature();world.walls=staticWallCells;
+  world.colliders=list;world.buckets=buckets;world.version++;world.edgeCache=new Map();world.navCache=new Map();world._sig=signature();world.walls=staticWallCells;
  }
  const dynamic=objects.filter(o=>o.solid||o.type==='door');
  const signature=()=>dynamic.map(o=>`${o.x},${o.z},${o.rot},${o.open},${o.active}`).join('|');
@@ -91,7 +98,8 @@ export function createWorld(){
    for(const [o,d,l,h]of [[a.x,dx,c.x0-margin,c.x1+margin],[a.z,dz,c.z0-margin,c.z1+margin]]){if(Math.abs(d)<1e-12){if(o<l||o>h){t0=2;break;}continue;}let p=(l-o)/d,q=(h-o)/d;if(p>q)[p,q]=[q,p];t0=Math.max(t0,p);t1=Math.min(t1,q);if(t0>t1)break;}
    if(t0<=t1)return false;}
   return true;};
- world.navBlocked=(x,z,f)=>world.blocked(x,z,f)||!world.segmentClear({x:x-.26,z,f},{x:x+.26,z,f})||!world.segmentClear({x,z:z-.26,f},{x,z:z+.26,f});
+ const navRaw=(x,z,f)=>world.blocked(x,z,f)||!world.segmentClear({x:x-.26,z,f},{x:x+.26,z,f})||!world.segmentClear({x,z:z-.26,f},{x,z:z+.26,f});
+ world.navBlocked=(x,z,f)=>{if(x!==Math.round(x)||z!==Math.round(z))return navRaw(x,z,f);const k=(f*64+x)*64+z;let v=world.navCache.get(k);if(v===undefined){v=navRaw(x,z,f);world.navCache.set(k,v);}return v;};
  // Ground-truth traversability of a grid edge, cached until any door or object changes.
  world.edgeClear=(k1,k2)=>{const id=k1<k2?k1+'|'+k2:k2+'|'+k1;let v=world.edgeCache.get(id);if(v===undefined){const a=point(k1),b=point(k2);v=a.f!==b.f||world.segmentClear(a,b,.22);world.edgeCache.set(id,v);}return v;};
 
@@ -150,14 +158,14 @@ export function neighbors(k,links=false){const p=point(k),out=[];for(const [x,z]
  if(links){const l=LINK_AT.get(k);if(l&&(links===true||links.has(l.id)))for(const g of linkTargets(l,p.f))out.push(key(p.x,p.z,g));}return out;}
 // A* with a binary heap. edgeBlocked(k1,k2) optionally rejects grid edges that cut a corner
 // of an obstacle (e.g. a swung-open door leaf) even when both cells are free.
-export function route(start,goal,blocked,links=false,edgeBlocked=null){
+export function route(start,goal,blocked,links=false,edgeBlocked=null,cellCost=null){
  const s=key(start.x,start.z,start.f),g=typeof goal==='string'?goal:key(goal.x,goal.z,goal.f);if(s===g)return [];
- const gp=point(g),h=k=>{const p=point(k);return Math.hypot(p.x-gp.x,p.z-gp.z,(p.f-gp.f)*H);};
+ const gp=point(g),hs=cellCost?.64:1,h=k=>{const p=point(k);return hs*Math.hypot(p.x-gp.x,p.z-gp.z,(p.f-gp.f)*H);};
  const cost=new Map([[s,0]]),parent=new Map(),closed=new Set(),heap=[[h(s),s]];
  const push=e=>{heap.push(e);let i=heap.length-1;while(i){const p=(i-1)>>1;if(heap[p][0]<=heap[i][0])break;[heap[p],heap[i]]=[heap[i],heap[p]];i=p;}};
  const pop=()=>{const top=heap[0],last=heap.pop();if(heap.length){heap[0]=last;let i=0;for(;;){const l=2*i+1,r=l+1;let m=i;if(l<heap.length&&heap[l][0]<heap[m][0])m=l;if(r<heap.length&&heap[r][0]<heap[m][0])m=r;if(m===i)break;[heap[m],heap[i]]=[heap[i],heap[m]];i=m;}}return top;};
  while(heap.length){const [,c]=pop();if(closed.has(c))continue;if(c===g){const out=[];for(let k=g;k!==s;k=parent.get(k))out.unshift(point(k));return out;}closed.add(c);const cp=point(c);
-  for(const n of neighbors(c,links)){if(closed.has(n)||blocked(n)||(edgeBlocked&&edgeBlocked(c,n)))continue;const np=point(n);const v=cost.get(c)+(cp.f===np.f?1:linkCost(LINK_AT.get(c),cp.f,np.f));if(v<(cost.get(n)??Infinity)){cost.set(n,v);parent.set(n,c);push([v+h(n),n]);}}}
+  for(const n of neighbors(c,links)){if(closed.has(n)||blocked(n)||(edgeBlocked&&edgeBlocked(c,n)))continue;const np=point(n);const v=cost.get(c)+(cp.f===np.f?(cellCost?cellCost(n):1):linkCost(LINK_AT.get(c),cp.f,np.f));if(v<(cost.get(n)??Infinity)){cost.set(n,v);parent.set(n,c);push([v+h(n),n]);}}}
  return null;
 }
 

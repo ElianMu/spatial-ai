@@ -1,3 +1,14 @@
+# Validation / 2026-11-12 course-requirements upgrade
+
+All four suites pass on the current code:
+
+* `node designer-test.mjs`: **10 / 10.** The genome controls links, doors, regions, dock and staff. Mutations are reproducible and valid over 200 generations, and a full-height stair always stays open. A wet floor slows walkers below 50 % and a fast lane speeds them up by more than 30 %. Planners route around a seen wet floor and onto a fast lane. A wayfinding sign reveals every link on its floor. The six frames and five distance metrics are consistent (geodesic > Euclidean). The true sun position is ≈31° elevation due south at local noon on 12 Nov and ≈72.6° on 21 June. Sun drives room heat and glare (none at night), and MOMO reads the heated temperature. Seeded events are reproducible. Headless evaluation is deterministic, and design changes move the score (baseline 67.7 vs. variant 70.7 over 90 s).
+* `node simulation-test.mjs`: **11 / 11.** `node interaction-test.mjs`: **3 / 3.**
+* `node acceptance-test.mjs`: **A–F, H pass.** With the baseline regions and random events, MOMO maps 28 % of the five-floor building in 20 min, works on L1–L3, and completes 49 tasks. B labels 18 / 18 regions correctly; D finds 15 / 15 rooms routable and the test drive arrives; F finds 0 phantom cells in 3,969. Simulation cost is 32 ms CPU per simulated second.
+* Browser (headless Chrome, software WebGL): no page errors. Whole-building view, both designer modes (two live Web-Worker simulations; a 2-epoch evolution improved the score from 62.6 to 74.4) and the real-data panel all work. Weather falls back to the clear-sky model when Open-Meteo is unreachable.
+
+---
+
 # Validation / 2026-11-12 Tower upgrade (5 floors, 3 stairs, 2 lifts)
 
 All numbers come from runs of the current code. The simulation is deterministic: the sensor noise is seeded.
